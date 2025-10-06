@@ -105,6 +105,12 @@ const Layout = ({ children }) => {
             badge: '3'
           },
           { 
+            label: 'Manual Grading', 
+            path: '/lecturer/grading', 
+            icon: Users,
+            badge: null
+          },
+          { 
             label: 'Analytics', 
             path: '/lecturer/analytics', 
             icon: BarChart3,

@@ -11,6 +11,8 @@ import LecturerDashboard from './pages/lecturer/LecturerDashboard';
 import QuestionManagement from './pages/lecturer/QuestionManagement';
 import QuizManagement from './pages/lecturer/QuizManagement';
 import AnalyticsPage from './pages/lecturer/AnalyticsPage';
+import GradingDashboard from './pages/lecturer/GradingDashboard';
+import GradingInterface from './pages/lecturer/GradingInterface';
 import StudentDashboard from './pages/student/StudentDashboard';
 import QuizPage from './pages/student/QuizPage';
 
@@ -55,6 +57,8 @@ function App() {
                       <Route path="questions" element={<QuestionManagement />} />
                       <Route path="quizzes" element={<QuizManagement />} />
                       <Route path="analytics" element={<AnalyticsPage />} />
+                      <Route path="grading" element={<GradingDashboard />} />
+                      <Route path="grading/:submissionId" element={<GradingInterface />} />
                       <Route path="" element={<Navigate to="dashboard" replace />} />
                     </Routes>
                   </Layout>
