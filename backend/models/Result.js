@@ -89,7 +89,7 @@ const resultSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['submitted', 'graded', 'reviewed'],
+    enum: ['submitted', 'graded', 'reviewed', 'pending_manual_review'],
     default: 'submitted'
   }
 }, {
@@ -102,10 +102,19 @@ resultSchema.index({ lecturerId: 1, createdAt: -1 });
 resultSchema.index({ moduleCode: 1, createdAt: -1 });
 resultSchema.index({ percentage: -1 });
 
-// Calculate grade based on percentage - FIXED VERSION
+// Calculate grade based on percentage - Updated to handle manual review
 resultSchema.pre('save', function(next) {
   console.log('=== RESULT PRE-SAVE HOOK ===');
+  console.log('Status:', this.status);
   console.log('Percentage:', this.percentage);
+  
+  // Skip grade calculation for pending manual review
+  if (this.status === 'pending_manual_review') {
+    console.log('Pending manual review - skipping grade calculation');
+    this.grade = 'F'; // Temporary grade, will be updated after manual grading
+    next();
+    return;
+  }
   
   // Ensure percentage is a number
   const percentage = Number(this.percentage) || 0;

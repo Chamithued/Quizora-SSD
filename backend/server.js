@@ -9,6 +9,7 @@ import userRoutes from './routes/userRoutes.js';
 import questionRoutes from './routes/questionRoutes.js';
 import moduleRoutes from './routes/moduleRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
+import gradingRoutes from './routes/gradingRoutes.js';
 import User from './models/User.js';
 import Quiz from './models/Quiz.js';
 import Result from './models/Result.js';
@@ -55,15 +56,6 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Stricter rate limiting for auth routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'Too many authentication attempts, please try again later.'
-});
-
 // Database connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
@@ -99,11 +91,12 @@ mongoose.connection.once('open', () => {
 });
 
 // Routes
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/modules', moduleRoutes);
 app.use('/api/quizzes', quizRoutes);
+app.use('/api/grading', gradingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

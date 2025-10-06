@@ -81,13 +81,19 @@ const QuizPage = () => {
         startTime: submissionData.startTime
       });
 
-      // Store result for display
-      setQuizResult(response.result);
+      // Store result and submission info for display
+      setQuizResult({
+        ...response.result,
+        requiresManualGrading: response.requiresManualGrading,
+        submissionMessage: response.message
+      });
       setCurrentStep('completed');
       
+      // Redirect after longer delay for manual grading cases
+      const redirectDelay = response.requiresManualGrading ? 8000 : 5000;
       setTimeout(() => {
         navigate('/student/dashboard');
-      }, 5000);
+      }, redirectDelay);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -128,45 +134,83 @@ const QuizPage = () => {
 
   // Completion state
   if (currentStep === 'completed') {
+    const requiresManualGrading = quizResult?.requiresManualGrading;
+    
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg">
+        <div className="text-center max-w-lg mx-auto p-6 bg-white rounded-xl shadow-lg">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Quiz Completed!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Quiz Submitted Successfully!</h2>
           
-          {quizResult && (
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-center mb-3">
-                <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
-                <span className="text-2xl font-bold text-gray-900">
-                  Grade: {quizResult.grade}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">Score</p>
-                  <p className="font-semibold">{quizResult.score}/{quizResult.totalMarks}</p>
+          {/* Display different content based on grading type */}
+          {requiresManualGrading ? (
+            <>
+              {/* Manual Grading Required */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center mb-3">
+                  <AlertCircle className="w-8 h-8 text-blue-500 mr-2" />
+                  <span className="text-lg font-semibold text-blue-900">
+                    Pending Manual Review
+                  </span>
                 </div>
-                <div>
-                  <p className="text-gray-600">Percentage</p>
-                  <p className="font-semibold">{quizResult.percentage}%</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Time Taken</p>
-                  <p className="font-semibold">{quizResult.timeTaken} min</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Status</p>
-                  <p className="font-semibold text-green-600">Submitted</p>
+                <p className="text-sm text-blue-800 mb-2">
+                  Your quiz contains questions that require manual grading by your lecturer.
+                </p>
+                <div className="text-sm text-blue-700">
+                  <p className="font-medium">Time Taken: {quizResult.timeTaken} minutes</p>
+                  <p className="font-medium">Status: Awaiting Review</p>
                 </div>
               </div>
-            </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-yellow-800">
+                  <strong>📋 What happens next?</strong><br/>
+                  • Your lecturer will review your structured/essay answers<br/>
+                  • You will receive your final grade once review is complete<br/>
+                  • Check your student profile later to view your results
+                </p>
+              </div>
+
+              <p className="text-gray-600 mb-6">
+                {quizResult.submissionMessage || 'Please wait for your lecturer to review your answers. You can check your results later in your student profile.'}
+              </p>
+            </>
+          ) : (
+            <>
+              {/* Immediate Results Available */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-center mb-3">
+                  <Trophy className="w-8 h-8 text-yellow-500 mr-2" />
+                  <span className="text-2xl font-bold text-gray-900">
+                    Grade: {quizResult.grade}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Score</p>
+                    <p className="font-semibold">{quizResult.score}/{quizResult.totalMarks}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Percentage</p>
+                    <p className="font-semibold">{quizResult.percentage}%</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Time Taken</p>
+                    <p className="font-semibold">{quizResult.timeTaken} min</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Status</p>
+                    <p className="font-semibold text-green-600">Complete</p>
+                  </div>
+                </div>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                {quizResult.submissionMessage || 'Your results are available immediately. You will be redirected to your dashboard shortly.'}
+              </p>
+            </>
           )}
 
-          <p className="text-gray-600 mb-6">
-            Your quiz has been submitted successfully. 
-            You will be redirected to your dashboard shortly.
-          </p>
           <button
             onClick={() => navigate('/student/dashboard')}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

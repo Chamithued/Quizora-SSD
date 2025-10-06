@@ -795,6 +795,7 @@ export const submitQuiz = async (req, res) => {
     const gradedAnswers = [];
     let totalScore = 0;
     let totalMarks = 0;
+    let hasManualGradingQuestions = false;
 
     // Grade each answer
     for (const answerData of answers) {
@@ -806,8 +807,6 @@ export const submitQuiz = async (req, res) => {
       }
 
       const maxMarks = 1;
-      totalMarks += maxMarks;
-
       let isCorrect = false;
       let marks = 0;
 
@@ -819,11 +818,13 @@ export const submitQuiz = async (req, res) => {
           marks = maxMarks;
           totalScore += marks;
         }
+        totalMarks += maxMarks; // Only count MCQ questions in total for auto-grading
       }
       // For non-MCQ questions, mark as requiring manual grading
       else if (question.type === 'Structured' || question.type === 'Essay') {
-        // For now, these require manual grading
-        marks = 0; // Will be updated by lecturer
+        hasManualGradingQuestions = true;
+        marks = 0; // Will be updated by lecturer after manual grading
+        // Don't add to totalMarks yet - will be added after manual grading
       }
 
       gradedAnswers.push({
@@ -840,18 +841,32 @@ export const submitQuiz = async (req, res) => {
       });
     }
 
-    const percentage = totalMarks > 0 ? Math.round((totalScore / totalMarks) * 100) : 0;
     const endTime = new Date();
 
     console.log('=== SCORE CALCULATION ===');
     console.log('Total score:', totalScore);
     console.log('Total marks:', totalMarks);
-    console.log('Percentage:', percentage);
+    console.log('Has manual grading questions:', hasManualGradingQuestions);
 
-    const grade = calculateGrade(percentage);
-    console.log('Calculated grade:', grade);
+    let resultData;
+    let status = 'submitted';
+    let percentage = 0;
+    let grade = 'F';
 
-    const resultData = {
+    if (hasManualGradingQuestions) {
+      // Quiz has structured/essay questions - requires manual grading
+      status = 'pending_manual_review';
+      percentage = 0; // Will be calculated after manual grading
+      grade = 'F'; // Temporary grade
+      console.log('Quiz requires manual grading - setting status to pending_manual_review');
+    } else {
+      // Only MCQ questions - can calculate final grade immediately
+      percentage = totalMarks > 0 ? Math.round((totalScore / totalMarks) * 100) : 0;
+      grade = calculateGrade(percentage);
+      console.log('MCQ-only quiz - calculating final grade:', grade);
+    }
+
+    resultData = {
       studentId: req.user._id,
       studentName: `${req.user.firstName} ${req.user.lastName}`,
       studentEmail: req.user.email,
@@ -862,16 +877,18 @@ export const submitQuiz = async (req, res) => {
       lecturerId: quiz.createdBy,
       answers: gradedAnswers,
       score: totalScore,
-      totalMarks,
+      totalMarks: hasManualGradingQuestions ? 0 : totalMarks, // Set to 0 for manual review
       percentage,
       grade: grade,
       timeTaken: timeTakenMinutes, // Store in minutes
       startTime: studentStartTime,
       endTime,
-      submissionType: 'normal'
+      submissionType: 'normal',
+      status: status
     };
 
     console.log('Creating result with grade:', grade);
+    console.log('Creating result with status:', status);
 
     const result = new Result(resultData);
     
@@ -879,19 +896,39 @@ export const submitQuiz = async (req, res) => {
     await result.save();
     
     console.log('Result saved successfully with grade:', result.grade);
+    console.log('Result saved successfully with status:', result.status);
     console.log('=== QUIZ SUBMISSION COMPLETE ===');
 
-    res.json({
-      success: true,
-      result: {
-        score: totalScore,
-        totalMarks,
-        percentage,
-        grade: result.grade,
-        timeTaken: result.timeTaken
-      },
-      message: 'Quiz submitted successfully'
-    });
+    // Send different responses based on grading type
+    if (hasManualGradingQuestions) {
+      res.json({
+        success: true,
+        requiresManualGrading: true,
+        result: {
+          score: totalScore,
+          totalMarks: result.totalMarks,
+          percentage: result.percentage,
+          grade: result.grade,
+          timeTaken: result.timeTaken,
+          status: result.status
+        },
+        message: 'Quiz submitted successfully! Your quiz contains questions that require manual grading. Please wait for your lecturer to review your answers. You can check your results later in your student profile.'
+      });
+    } else {
+      res.json({
+        success: true,
+        requiresManualGrading: false,
+        result: {
+          score: totalScore,
+          totalMarks: result.totalMarks,
+          percentage: result.percentage,
+          grade: result.grade,
+          timeTaken: result.timeTaken,
+          status: result.status
+        },
+        message: 'Quiz submitted successfully! Your results are available immediately.'
+      });
+    }
 
   } catch (error) {
     console.error('=== SUBMIT QUIZ ERROR ===');
