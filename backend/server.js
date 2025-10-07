@@ -10,6 +10,7 @@ import questionRoutes from './routes/questionRoutes.js';
 import moduleRoutes from './routes/moduleRoutes.js';
 import quizRoutes from './routes/quizRoutes.js';
 import gradingRoutes from './routes/gradingRoutes.js';
+import rubricRoutes from './routes/rubricRoutes.js';
 import User from './models/User.js';
 import Quiz from './models/Quiz.js';
 import Result from './models/Result.js';
@@ -97,6 +98,7 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/modules', moduleRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/grading', gradingRoutes);
+app.use('/api/rubrics', rubricRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

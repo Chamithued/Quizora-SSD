@@ -1,5 +1,22 @@
 import mongoose from 'mongoose';
 
+// Rubric scoring schema for detailed breakdown
+const rubricScoringSchema = new mongoose.Schema({
+  criteriaId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true
+  },
+  criteriaName: String,
+  selectedLevel: {
+    level: String,
+    points: Number,
+    description: String
+  },
+  maxPoints: Number,
+  weight: Number,
+  feedback: String // Optional feedback for this criteria
+});
+
 const answerSchema = new mongoose.Schema({
   questionId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -24,7 +41,19 @@ const answerSchema = new mongoose.Schema({
   maxMarks: {
     type: Number,
     default: 1
-  }
+  },
+  // Rubric-based grading information
+  rubricId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Rubric'
+  },
+  rubricScoring: [rubricScoringSchema],
+  gradingMethod: {
+    type: String,
+    enum: ['simple', 'rubric'],
+    default: 'simple'
+  },
+  lecturerFeedback: String // Overall feedback for the answer
 });
 
 const resultSchema = new mongoose.Schema({

@@ -7,7 +7,7 @@ import {
   Bell, Settings, Search, Menu, X, ChevronDown, User, 
   LogOut, Shield, Activity, Database, Wifi, Clock,
   Home, Users, FileText, Calendar, BarChart3, HelpCircle,
-  Zap, Globe, Lock, Cpu
+  Zap, Globe, Lock, Cpu, Target
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -108,6 +108,12 @@ const Layout = ({ children }) => {
             label: 'Manual Grading', 
             path: '/lecturer/grading', 
             icon: Users,
+            badge: null
+          },
+          { 
+            label: 'Rubrics', 
+            path: '/lecturer/rubrics', 
+            icon: Target,
             badge: null
           },
           { 

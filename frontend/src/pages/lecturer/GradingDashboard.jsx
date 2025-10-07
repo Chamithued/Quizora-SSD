@@ -18,14 +18,22 @@ const GradingDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'graded'
   const [stats, setStats] = useState({
     pendingCount: 0,
     gradedCount: 0,
+    gradedManualCount: 0,
     submittedCount: 0,
     reviewedCount: 0,
     recentPending: []
   });
   const [submissions, setSubmissions] = useState({
+    submissionsByQuiz: {},
+    total: 0,
+    page: 1,
+    totalPages: 1
+  });
+  const [gradedSubmissions, setGradedSubmissions] = useState({
     submissionsByQuiz: {},
     total: 0,
     page: 1,
@@ -38,32 +46,45 @@ const GradingDashboard = () => {
 
   useEffect(() => {
     loadGradingData();
-  }, [filters]);
+  }, [filters, activeTab]);
 
   const loadGradingData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Load stats and pending submissions
+      // Load stats and submissions based on active tab
       const [statsResponse, submissionsResponse] = await Promise.all([
         gradingService.getGradingStats(),
-        gradingService.getPendingSubmissions(filters)
+        activeTab === 'pending' 
+          ? gradingService.getPendingSubmissions(filters)
+          : gradingService.getGradedSubmissions(filters)
       ]);
 
       setStats(statsResponse || {
         pendingCount: 0,
         gradedCount: 0,
+        gradedManualCount: 0,
         submittedCount: 0,
         reviewedCount: 0,
         recentPending: []
       });
-      setSubmissions(submissionsResponse || {
-        submissionsByQuiz: {},
-        total: 0,
-        page: 1,
-        totalPages: 1
-      });
+
+      if (activeTab === 'pending') {
+        setSubmissions(submissionsResponse || {
+          submissionsByQuiz: {},
+          total: 0,
+          page: 1,
+          totalPages: 1
+        });
+      } else {
+        setGradedSubmissions(submissionsResponse || {
+          submissionsByQuiz: {},
+          total: 0,
+          page: 1,
+          totalPages: 1
+        });
+      }
     } catch (err) {
       setError(err.message || 'Failed to load grading data');
     } finally {
@@ -125,8 +146,8 @@ const GradingDashboard = () => {
           <div className="flex items-center">
             <CheckCircle className="w-8 h-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Graded</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.gradedCount || 0}</p>
+              <p className="text-sm font-medium text-gray-600">Graded (Manual)</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.gradedManualCount || 0}</p>
             </div>
           </div>
         </div>
@@ -135,8 +156,8 @@ const GradingDashboard = () => {
           <div className="flex items-center">
             <Users className="w-8 h-8 text-blue-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Auto-Graded</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.submittedCount || 0}</p>
+              <p className="text-sm font-medium text-gray-600">Total Graded</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.gradedCount || 0}</p>
             </div>
           </div>
         </div>
@@ -145,10 +166,44 @@ const GradingDashboard = () => {
           <div className="flex items-center">
             <BookOpen className="w-8 h-8 text-purple-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Reviewed</p>
-              <p className="text-2xl font-bold text-gray-900">{stats?.reviewedCount || 0}</p>
+              <p className="text-sm font-medium text-gray-600">Auto-Graded</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.submittedCount || 0}</p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('pending')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'pending'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span>Pending Review ({stats?.pendingCount || 0})</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('graded')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'graded'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <CheckCircle className="w-4 h-4" />
+                <span>Already Graded ({stats?.gradedManualCount || 0})</span>
+              </div>
+            </button>
+          </nav>
         </div>
       </div>
 
@@ -191,16 +246,35 @@ const GradingDashboard = () => {
 
       {/* Submissions by Quiz */}
       <div className="space-y-6">
-        {Object.keys(submissions?.submissionsByQuiz || {}).length === 0 ? (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Reviews</h3>
-            <p className="text-gray-600">
-              All submissions have been graded or there are no submissions requiring manual review.
-            </p>
-          </div>
-        ) : (
-          Object.values(submissions?.submissionsByQuiz || {}).map((quizGroup) => (
+        {(() => {
+          const currentSubmissions = activeTab === 'pending' ? submissions : gradedSubmissions;
+          const isEmpty = Object.keys(currentSubmissions?.submissionsByQuiz || {}).length === 0;
+
+          if (isEmpty) {
+            return (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+                {activeTab === 'pending' ? (
+                  <>
+                    <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Reviews</h3>
+                    <p className="text-gray-600">
+                      All submissions have been graded or there are no submissions requiring manual review.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Graded Submissions</h3>
+                    <p className="text-gray-600">
+                      No manually graded submissions are available for review.
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          }
+
+          return Object.values(currentSubmissions?.submissionsByQuiz || {}).map((quizGroup) => (
             <div key={quizGroup.quiz._id} className="bg-white rounded-xl shadow-sm border border-gray-200">
               {/* Quiz Header */}
               <div className="border-b border-gray-200 p-6">
@@ -213,7 +287,7 @@ const GradingDashboard = () => {
                         {quizGroup.module?.moduleCode}
                       </span>
                       <span className="text-xs text-gray-500">
-                        {quizGroup.submissions.length} submission{quizGroup.submissions.length !== 1 ? 's' : ''} pending
+                        {quizGroup.submissions.length} submission{quizGroup.submissions.length !== 1 ? 's' : ''} {activeTab === 'pending' ? 'pending' : 'graded'}
                       </span>
                     </div>
                   </div>
@@ -236,27 +310,53 @@ const GradingDashboard = () => {
                       </div>
 
                       <div className="flex items-center space-x-6">
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Questions Requiring Review</p>
-                          <p className="text-sm font-medium text-orange-600">{submission.structuredEssayCount}</p>
-                        </div>
+                        {activeTab === 'pending' ? (
+                          <>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Questions Requiring Review</p>
+                              <p className="text-sm font-medium text-orange-600">{submission.structuredEssayCount}</p>
+                            </div>
 
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Time Taken</p>
-                          <p className="text-sm font-medium text-gray-900">{submission.timeTaken} min</p>
-                        </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Time Taken</p>
+                              <p className="text-sm font-medium text-gray-900">{submission.timeTaken} min</p>
+                            </div>
 
-                        <div className="text-center">
-                          <p className="text-xs text-gray-500">Submitted</p>
-                          <p className="text-sm font-medium text-gray-900">{formatDate(submission.submittedAt)}</p>
-                        </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Submitted</p>
+                              <p className="text-sm font-medium text-gray-900">{formatDate(submission.submittedAt)}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Manual Questions</p>
+                              <p className="text-sm font-medium text-green-600">{submission.manualQuestions}</p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Current Score</p>
+                              <p className="text-sm font-medium text-gray-900">{submission.score}/{submission.totalMarks}</p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Grade</p>
+                              <p className="text-sm font-medium text-gray-900">{submission.grade} ({submission.percentage}%)</p>
+                            </div>
+
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">Last Graded</p>
+                              <p className="text-sm font-medium text-gray-900">{formatDate(submission.gradedAt)}</p>
+                            </div>
+                          </>
+                        )}
 
                         <button
                           onClick={() => handleViewSubmission(submission._id)}
                           className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                           <Eye className="w-4 h-4 mr-1" />
-                          Grade
+                          {activeTab === 'pending' ? 'Grade' : 'Review & Edit'}
                         </button>
                       </div>
                     </div>
@@ -264,8 +364,8 @@ const GradingDashboard = () => {
                 ))}
               </div>
             </div>
-          ))
-        )}
+          ));
+        })()}
       </div>
 
       {/* Recent Activity */}

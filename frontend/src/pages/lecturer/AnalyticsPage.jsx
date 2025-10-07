@@ -14,6 +14,52 @@ const AnalyticsPage = () => {
   });
   const [modules, setModules] = useState([]);
 
+  // Smart display function for correct answers column
+  const getSmartAnswerDisplay = (submission) => {
+    const { mcqCount = 0, structuredCount = 0, essayCount = 0, mcqCorrect = 0, mcqRate = 0 } = submission;
+    const totalManualQuestions = structuredCount + essayCount;
+    
+    if (mcqCount > 0 && totalManualQuestions === 0) {
+      // MCQ only
+      return {
+        primary: `${mcqCorrect}/${mcqCount}`,
+        secondary: `${mcqRate}%`,
+        color: mcqRate >= 80 ? 'bg-green-100 text-green-800' :
+               mcqRate >= 50 ? 'bg-yellow-100 text-yellow-800' :
+               'bg-red-100 text-red-800'
+      };
+    } else if (mcqCount === 0 && totalManualQuestions > 0) {
+      // Manual questions only (Structured/Essay)
+      const questionTypes = [];
+      if (structuredCount > 0) questionTypes.push(`${structuredCount} Structured`);
+      if (essayCount > 0) questionTypes.push(`${essayCount} Essay${essayCount > 1 ? 's' : ''}`);
+      
+      return {
+        primary: questionTypes.join(', '),
+        secondary: 'Manual Review',
+        color: 'bg-blue-100 text-blue-800'
+      };
+    } else if (mcqCount > 0 && totalManualQuestions > 0) {
+      // Mixed questions
+      const manualParts = [];
+      if (structuredCount > 0) manualParts.push(`${structuredCount} Structured`);
+      if (essayCount > 0) manualParts.push(`${essayCount} Essay${essayCount > 1 ? 's' : ''}`);
+      
+      return {
+        primary: `${mcqCorrect}/${mcqCount} MCQ`,
+        secondary: manualParts.join(', '),
+        color: 'bg-purple-100 text-purple-800'
+      };
+    } else {
+      // Fallback for edge cases
+      return {
+        primary: '0 Questions',
+        secondary: '',
+        color: 'bg-gray-100 text-gray-800'
+      };
+    }
+  };
+
   useEffect(() => {
     fetchModules();
     fetchAnalytics();
@@ -170,7 +216,7 @@ const AnalyticsPage = () => {
             <Users className="w-8 h-8 text-blue-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Submissions</p>
-              <p className="text-2xl font-bold text-gray-900">{analytics?.overall?.totalSubmissions || 0}</p>
+              <p className="text-2xl font-bold text-gray-900">{analytics?.overallStats?.totalSubmissions || 0}</p>
             </div>
           </div>
         </div>
@@ -179,10 +225,10 @@ const AnalyticsPage = () => {
           <div className="flex items-center">
             <CheckCircle className="w-8 h-8 text-green-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Correct Answers</p>
-              <p className="text-2xl font-bold text-gray-900">{analytics?.overall?.correctAnswers || 0}</p>
+              <p className="text-sm font-medium text-gray-600">Auto-Graded Answers</p>
+              <p className="text-2xl font-bold text-gray-900">{analytics?.overallStats?.correctAnswers || 0}</p>
               <p className="text-xs text-gray-500">
-                {analytics?.overall?.correctAnswerRate || 0}% success rate
+                {analytics?.overallStats?.correctAnswerRate || 0}% success rate
               </p>
             </div>
           </div>
@@ -193,7 +239,7 @@ const AnalyticsPage = () => {
             <TrendingUp className="w-8 h-8 text-green-600" />
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Average Score</p>
-              <p className="text-2xl font-bold text-gray-900">{analytics?.overall?.averageScore || 0}%</p>
+              <p className="text-2xl font-bold text-gray-900">{analytics?.overallStats?.averageScore || 0}%</p>
             </div>
           </div>
         </div>
@@ -458,14 +504,19 @@ const AnalyticsPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center">
-                        <span className="font-medium">{submission.correctAnswers}/{submission.totalQuestions}</span>
-                        <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
-                          submission.correctAnswerRate >= 80 ? 'bg-green-100 text-green-800' :
-                          submission.correctAnswerRate >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {submission.correctAnswerRate}%
-                        </span>
+                        {(() => {
+                          const displayData = getSmartAnswerDisplay(submission);
+                          return (
+                            <>
+                              <span className="font-medium">{displayData.primary}</span>
+                              {displayData.secondary && (
+                                <span className={`ml-2 px-2 py-1 text-xs rounded-full ${displayData.color}`}>
+                                  {displayData.secondary}
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
