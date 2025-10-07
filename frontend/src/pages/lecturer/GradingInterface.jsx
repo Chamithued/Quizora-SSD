@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { gradingService } from '../../services/gradingService';
+import { rubricService } from '../../services/rubricService';
 import { 
   ArrowLeft,
   User,
@@ -9,7 +10,10 @@ import {
   CheckCircle,
   AlertCircle,
   Save,
-  Eye
+  Eye,
+  Target,
+  Star,
+  FileText
 } from 'lucide-react';
 
 const GradingInterface = () => {
@@ -22,10 +26,23 @@ const GradingInterface = () => {
   const [submission, setSubmission] = useState(null);
   const [answers, setAnswers] = useState({});
   const [grades, setGrades] = useState({});
+  const [availableRubrics, setAvailableRubrics] = useState([]);
+  const [selectedRubrics, setSelectedRubrics] = useState({});
+  const [rubricScores, setRubricScores] = useState({});
+  const [gradingMode, setGradingMode] = useState('traditional'); // 'traditional' or 'rubric'
 
   useEffect(() => {
     loadSubmissionData();
   }, [submissionId]);
+
+  useEffect(() => {
+    if (answers && Object.keys(answers).length > 0) {
+      loadAvailableRubrics();
+    } else if (Object.keys(answers).length === 0) {
+      // Load rubrics even if no answers yet
+      loadAvailableRubrics();
+    }
+  }, [answers]);
 
   const loadSubmissionData = async () => {
     try {
@@ -33,23 +50,77 @@ const GradingInterface = () => {
       setError('');
 
       const response = await gradingService.getSubmissionForGrading(submissionId);
-      setSubmission(response.data.submission);
-      setAnswers(response.data.answers);
+      
+      setSubmission(response?.submission);
+      setAnswers(response?.answers);
 
       // Initialize grades with current values
       const initialGrades = {};
-      [...response.data.answers.structured, ...response.data.answers.essay].forEach(answer => {
+      const initialRubricScores = {};
+      const initialSelectedRubrics = {};
+      
+      const structuredAnswers = response?.answers?.structured || [];
+      const essayAnswers = response?.answers?.essay || [];
+      
+      [...structuredAnswers, ...essayAnswers].forEach(answer => {
         initialGrades[answer.questionId] = {
           marks: answer.marks || 0,
           maxMarks: answer.maxMarks || 1
         };
+
+        // Load existing rubric data if available
+        if (answer.rubricScoring) {
+          const rubricScoring = answer.rubricScoring;
+          
+          // Find the rubric in available rubrics (will be loaded later)
+          // We'll set this after rubrics are loaded
+          const criteriaScores = {};
+          rubricScoring.criteriaScores.forEach(criteriaScore => {
+            criteriaScores[criteriaScore.criterionId] = {
+              selectedLevel: criteriaScore.selectedLevelId,
+              points: criteriaScore.points,
+              feedback: criteriaScore.feedback
+            };
+          });
+          
+          initialRubricScores[answer.questionId] = criteriaScores;
+          // We'll need to find and set the rubric object after loading available rubrics
+        }
       });
+      
       setGrades(initialGrades);
+      setRubricScores(initialRubricScores);
 
     } catch (err) {
       setError(err.message || 'Failed to load submission data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableRubrics = async () => {
+    try {
+      const response = await rubricService.getRubrics();
+      const rubrics = response.rubrics || [];
+      setAvailableRubrics(rubrics);
+
+      // Match existing rubric data with loaded rubrics
+      if (answers && Object.keys(rubricScores).length > 0) {
+        const updatedSelectedRubrics = {};
+        
+        [...(answers.structured || []), ...(answers.essay || [])].forEach(answer => {
+          if (answer.rubricScoring && rubricScores[answer.questionId]) {
+            const rubric = rubrics.find(r => r._id === answer.rubricScoring.rubricId);
+            if (rubric) {
+              updatedSelectedRubrics[answer.questionId] = rubric;
+            }
+          }
+        });
+        
+        setSelectedRubrics(updatedSelectedRubrics);
+      }
+    } catch (err) {
+      console.error('Failed to load rubrics:', err);
     }
   };
 
@@ -63,18 +134,183 @@ const GradingInterface = () => {
     }));
   };
 
+  const handleRubricSelection = (questionId, rubricId) => {
+    const rubric = availableRubrics.find(r => r._id === rubricId);
+    if (rubric) {
+      setSelectedRubrics(prev => ({
+        ...prev,
+        [questionId]: rubric
+      }));
+      
+      // Initialize rubric scores
+      const initialScores = {};
+      rubric.criteria.forEach(criterion => {
+        initialScores[criterion._id] = {
+          selectedLevel: null,
+          points: 0,
+          feedback: ''
+        };
+      });
+      
+      setRubricScores(prev => ({
+        ...prev,
+        [questionId]: initialScores
+      }));
+    }
+  };
+
+  const handleRubricScoring = (questionId, criterionId, field, value) => {
+    setRubricScores(prev => ({
+      ...prev,
+      [questionId]: {
+        ...prev[questionId],
+        [criterionId]: {
+          ...prev[questionId]?.[criterionId] || {},
+          [field]: value
+        }
+      }
+    }));
+
+    // Auto-update traditional grade based on rubric score
+    if (field === 'points' || field === 'selectedLevel') {
+      calculateRubricTotal(questionId);
+    }
+  };
+
+  const calculateRubricTotal = (questionId) => {
+    const rubric = selectedRubrics[questionId];
+    const scores = rubricScores[questionId];
+    
+    if (!rubric || !scores) return;
+
+    let totalWeightedPoints = 0;
+    let totalMaxWeightedPoints = 0;
+    let totalWeight = 0;
+
+    rubric.criteria.forEach(criterion => {
+      const score = scores[criterion._id];
+      const weight = criterion.weight || 0;
+      const maxLevelPoints = Math.max(...criterion.performanceLevels.map(l => l.points || 0));
+      
+      // Add to total weight regardless of scoring
+      totalWeight += weight;
+      
+      if (score && score.selectedLevel) {
+        const level = criterion.performanceLevels.find(l => l._id === score.selectedLevel);
+        if (level) {
+          totalWeightedPoints += (level.points || 0) * (weight / 100);
+        }
+      }
+      
+      // Always add max points for this criterion
+      totalMaxWeightedPoints += maxLevelPoints * (weight / 100);
+    });
+
+    // Normalize if total weight is not 100%
+    let finalTotalPoints = totalWeightedPoints;
+    let finalMaxPoints = totalMaxWeightedPoints;
+    
+    if (totalWeight > 0 && totalWeight !== 100) {
+      const normalizationFactor = 100 / totalWeight;
+      finalTotalPoints = totalWeightedPoints * normalizationFactor;
+      finalMaxPoints = totalMaxWeightedPoints * normalizationFactor;
+    }
+
+    // Update traditional grade
+    setGrades(prev => ({
+      ...prev,
+      [questionId]: {
+        ...prev[questionId],
+        marks: Math.round((finalTotalPoints || 0) * 100) / 100,
+        maxMarks: Math.round((finalMaxPoints || 1) * 100) / 100 // Ensure at least 1 to prevent division by zero
+      }
+    }));
+  };
+
   const handleSaveGrades = async () => {
     try {
       setSaving(true);
       setError('');
       setSuccessMessage('');
 
-      // Prepare graded answers
-      const gradedAnswers = Object.entries(grades).map(([questionId, grade]) => ({
-        questionId,
-        marks: grade.marks,
-        maxMarks: grade.maxMarks
-      }));
+      // Validation: Check if all manual questions have been graded
+      const structuredAnswers = answers?.structured || [];
+      const essayAnswers = answers?.essay || [];
+      const allManualQuestions = [...structuredAnswers, ...essayAnswers];
+      
+      const missingGrades = [];
+      const missingRubricScores = [];
+      
+      for (const answer of allManualQuestions) {
+        const grade = grades[answer.questionId];
+        const rubric = selectedRubrics[answer.questionId];
+        const rubricScore = rubricScores[answer.questionId];
+        
+        // If using rubric-based grading, validate all criteria are scored
+        if (rubric && rubricScore) {
+          for (const criterion of rubric.criteria) {
+            const criterionScore = rubricScore[criterion._id];
+            if (!criterionScore || !criterionScore.selectedLevel) {
+              missingRubricScores.push(`"${answer.questionDetails?.questionText?.substring(0, 30) + '...'}": Missing score for criterion "${criterion.name}"`);
+            }
+          }
+        }
+        
+        // Traditional validation
+        if (!grade || (grade.marks === undefined || grade.marks === null || grade.marks === '')) {
+          missingGrades.push(answer.questionDetails?.questionText?.substring(0, 50) + '...' || 'Unknown question');
+        } else if (Number(grade.marks) < 0 || Number(grade.marks) > Number(grade.maxMarks)) {
+          setError(`Invalid marks for question: "${answer.questionDetails?.questionText?.substring(0, 50) + '...' || 'Unknown question'}". Marks must be between 0 and ${grade.maxMarks}.`);
+          return;
+        }
+      }
+      
+      // Check for missing rubric scores
+      if (missingRubricScores.length > 0) {
+        setError(`Please complete all rubric scoring: ${missingRubricScores.join(', ')}`);
+        return;
+      }
+      
+      if (missingGrades.length > 0) {
+        setError(`Please provide grades for all questions. Missing grades for: ${missingGrades.join(', ')}`);
+        return;
+      }
+
+      // Prepare graded answers with rubric data if available
+      const gradedAnswers = Object.entries(grades).map(([questionId, grade]) => {
+        const answerData = {
+          questionId,
+          marks: Number(grade.marks),
+          maxMarks: Number(grade.maxMarks)
+        };
+
+        // Add rubric scoring if rubric was used
+        if (selectedRubrics[questionId] && rubricScores[questionId]) {
+          const rubric = selectedRubrics[questionId];
+          const scores = rubricScores[questionId];
+          
+          answerData.rubricScoring = {
+            rubricId: rubric._id,
+            criteriaScores: Object.entries(scores).map(([criterionId, score]) => {
+              const criterion = rubric.criteria.find(c => c._id === criterionId);
+              const selectedLevel = criterion?.performanceLevels.find(l => l._id === score.selectedLevel);
+              
+              return {
+                criterionId,
+                criterionName: criterion?.name || '',
+                selectedLevelId: score.selectedLevel,
+                selectedLevelName: selectedLevel?.level || '',
+                points: score.points || 0,
+                maxPoints: Math.max(...(criterion?.performanceLevels.map(l => l.points) || [0])),
+                weight: criterion?.weight || 0,
+                feedback: score.feedback || ''
+              };
+            })
+          };
+        }
+
+        return answerData;
+      });
 
       const response = await gradingService.updateManualGrades(submissionId, gradedAnswers);
       
@@ -205,45 +441,195 @@ const GradingInterface = () => {
         {/* Grading Section */}
         {isGradable && (
           <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-md font-medium text-gray-900 mb-3">Grade this Answer:</h4>
-            <div className="flex items-center space-x-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Marks Awarded
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={currentGrade.maxMarks}
-                  step="0.5"
-                  value={currentGrade.marks}
-                  onChange={(e) => handleGradeChange(answer.questionId, 'marks', e.target.value)}
-                  className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-md font-medium text-gray-900">Grade this Answer:</h4>
               
-              <div className="text-lg font-medium text-gray-900">/</div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Max Marks
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="0.5"
-                  value={currentGrade.maxMarks}
-                  onChange={(e) => handleGradeChange(answer.questionId, 'maxMarks', e.target.value)}
-                  className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="ml-4">
-                <span className="text-sm text-gray-600">
-                  Percentage: {currentGrade.maxMarks > 0 ? Math.round((currentGrade.marks / currentGrade.maxMarks) * 100) : 0}%
-                </span>
+              {/* Grading Mode Toggle */}
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setGradingMode('traditional')}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    gradingMode === 'traditional'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <Target className="w-4 h-4 inline mr-1" />
+                  Traditional
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGradingMode('rubric')}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    gradingMode === 'rubric'
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 inline mr-1" />
+                  Rubric-based
+                </button>
               </div>
             </div>
+
+            {gradingMode === 'traditional' ? (
+              /* Traditional Grading */
+              <div className="flex items-center space-x-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Marks Awarded
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={currentGrade.maxMarks}
+                    step="0.5"
+                    value={currentGrade.marks}
+                    onChange={(e) => handleGradeChange(answer.questionId, 'marks', e.target.value)}
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                <div className="text-lg font-medium text-gray-900">/</div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Marks
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    value={currentGrade.maxMarks}
+                    onChange={(e) => handleGradeChange(answer.questionId, 'maxMarks', e.target.value)}
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="ml-4">
+                  <span className="text-sm text-gray-600">
+                    Percentage: {currentGrade.maxMarks > 0 ? Math.round((currentGrade.marks / currentGrade.maxMarks) * 100) : 0}%
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Rubric-based Grading */
+              <div className="space-y-4">
+                {/* Rubric Selection */}
+                {!selectedRubrics[answer.questionId] && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select a Rubric:
+                    </label>
+                    <select
+                      onChange={(e) => handleRubricSelection(answer.questionId, e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Choose a rubric...</option>
+                      {availableRubrics
+                        .filter(rubric => 
+                          rubric.questionTypes.includes(answer.questionType) ||
+                          rubric.questionTypes.length === 0
+                        )
+                        .map(rubric => (
+                          <option key={rubric._id} value={rubric._id}>
+                            {rubric.title} {rubric.isTemplate && '(Template)'}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Rubric Grading Interface */}
+                {selectedRubrics[answer.questionId] && (
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h5 className="font-medium text-purple-900">
+                        {selectedRubrics[answer.questionId].title}
+                      </h5>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRubrics(prev => {
+                            const newRubrics = { ...prev };
+                            delete newRubrics[answer.questionId];
+                            return newRubrics;
+                          });
+                          setRubricScores(prev => {
+                            const newScores = { ...prev };
+                            delete newScores[answer.questionId];
+                            return newScores;
+                          });
+                        }}
+                        className="text-sm text-purple-600 hover:text-purple-700"
+                      >
+                        Change Rubric
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {selectedRubrics[answer.questionId].criteria.map(criterion => (
+                        <div key={criterion._id} className="bg-white rounded-lg p-3 border border-purple-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <h6 className="font-medium text-gray-900">{criterion.name}</h6>
+                            <span className="text-sm text-gray-500">Weight: {criterion.weight}%</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">{criterion.description}</p>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {criterion.performanceLevels.map(level => (
+                              <label key={level._id} className="flex items-start space-x-2 p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`${answer.questionId}-${criterion._id}`}
+                                  value={level._id}
+                                  checked={rubricScores[answer.questionId]?.[criterion._id]?.selectedLevel === level._id}
+                                  onChange={(e) => {
+                                    handleRubricScoring(answer.questionId, criterion._id, 'selectedLevel', e.target.value);
+                                    handleRubricScoring(answer.questionId, criterion._id, 'points', level.points);
+                                  }}
+                                  className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium text-sm">{level.level}</span>
+                                    <span className="text-sm text-gray-500">{level.points} pts</span>
+                                  </div>
+                                  <p className="text-xs text-gray-600">{level.description}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+
+                          {/* Optional feedback for this criterion */}
+                          <div className="mt-2">
+                            <textarea
+                              placeholder="Additional feedback for this criterion (optional)"
+                              value={rubricScores[answer.questionId]?.[criterion._id]?.feedback || ''}
+                              onChange={(e) => handleRubricScoring(answer.questionId, criterion._id, 'feedback', e.target.value)}
+                              rows={2}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Rubric Summary */}
+                    <div className="mt-4 p-3 bg-white border border-purple-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900">Rubric Score:</span>
+                        <span className="font-semibold text-purple-700">
+                          {currentGrade.marks.toFixed(1)}/{currentGrade.maxMarks.toFixed(1)} 
+                          ({currentGrade.maxMarks > 0 ? Math.round((currentGrade.marks / currentGrade.maxMarks) * 100) : 0}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -265,6 +651,32 @@ const GradingInterface = () => {
           <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
           <p className="text-red-800">{error}</p>
         </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+        <span className="ml-2 text-gray-600">Loading submission...</span>
+      </div>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <div className="text-center py-12">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Submission Not Found</h3>
+        <p className="text-gray-600 mb-4">The submission you're looking for could not be loaded.</p>
+        <button
+          onClick={() => navigate('/lecturer/grading')}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Grading Dashboard
+        </button>
       </div>
     );
   }
@@ -322,22 +734,36 @@ const GradingInterface = () => {
                 <User className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">{submission.student.firstName} {submission.student.lastName}</h2>
-                <p className="text-gray-600">{submission.student.email}</p>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {submission?.student?.firstName} {submission?.student?.lastName}
+                </h2>
+                <p className="text-gray-600">{submission?.student?.email}</p>
               </div>
             </div>
             
             <div className="text-right">
-              <h3 className="text-lg font-medium text-gray-900">{submission.quiz.title}</h3>
-              <p className="text-gray-600">{submission.module.moduleCode}</p>
+              <div className="flex items-center justify-end space-x-2 mb-1">
+                <h3 className="text-lg font-medium text-gray-900">{submission?.quiz?.title}</h3>
+                {submission?.status === 'graded' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    Re-grading
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-600">{submission?.module?.moduleCode}</p>
               <div className="flex items-center space-x-4 mt-2">
                 <span className="inline-flex items-center text-sm text-gray-500">
                   <Clock className="w-4 h-4 mr-1" />
-                  {submission.timeTaken} minutes
+                  {submission?.timeTaken} minutes
                 </span>
                 <span className="text-sm text-gray-500">
-                  Submitted: {formatDate(submission.submittedAt)}
+                  Submitted: {formatDate(submission?.submittedAt)}
                 </span>
+                {submission?.status === 'graded' && submission?.gradedAt && (
+                  <span className="text-sm text-gray-500">
+                    Last graded: {formatDate(submission?.gradedAt)}
+                  </span>
+                )}
               </div>
             </div>
           </div>

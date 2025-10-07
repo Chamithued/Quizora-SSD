@@ -13,6 +13,9 @@ import QuizManagement from './pages/lecturer/QuizManagement';
 import AnalyticsPage from './pages/lecturer/AnalyticsPage';
 import GradingDashboard from './pages/lecturer/GradingDashboard';
 import GradingInterface from './pages/lecturer/GradingInterface';
+import RubricManagement from './pages/lecturer/RubricManagement';
+import RubricForm from './pages/lecturer/RubricForm';
+import RubricDetail from './pages/lecturer/RubricDetail';
 import StudentDashboard from './pages/student/StudentDashboard';
 import QuizPage from './pages/student/QuizPage';
 
@@ -59,6 +62,11 @@ function App() {
                       <Route path="analytics" element={<AnalyticsPage />} />
                       <Route path="grading" element={<GradingDashboard />} />
                       <Route path="grading/:submissionId" element={<GradingInterface />} />
+                      <Route path="rubrics" element={<RubricManagement />} />
+                      <Route path="rubrics/create" element={<RubricForm />} />
+                      <Route path="rubrics/new" element={<RubricForm />} />
+                      <Route path="rubrics/edit/:id" element={<RubricForm />} />
+                      <Route path="rubrics/:id" element={<RubricDetail />} />
                       <Route path="" element={<Navigate to="dashboard" replace />} />
                     </Routes>
                   </Layout>

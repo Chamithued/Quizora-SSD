@@ -1151,13 +1151,29 @@ export const getAnalytics = async (req, res) => {
       ])
     ]);
 
-    const enhancedRecentSubmissions = recentSubmissions.map(submission => ({
-      ...submission,
-      totalQuestions: submission.answers?.length || 0,
-      correctAnswers: submission.answers?.filter(ans => ans.isCorrect).length || 0,
-      correctAnswerRate: submission.answers?.length > 0 ?
-        Math.round((submission.answers.filter(ans => ans.isCorrect).length / submission.answers.length) * 100) : 0
-    }));
+    const enhancedRecentSubmissions = recentSubmissions.map(submission => {
+      const answers = submission.answers || [];
+      const mcqQuestions = answers.filter(ans => ans.questionType === 'MCQ');
+      const structuredQuestions = answers.filter(ans => ans.questionType === 'Structured');
+      const essayQuestions = answers.filter(ans => ans.questionType === 'Essay');
+      
+      const mcqCorrect = mcqQuestions.filter(ans => ans.isCorrect).length;
+      const totalCorrect = answers.filter(ans => ans.isCorrect).length;
+      
+      return {
+        ...submission,
+        totalQuestions: answers.length,
+        correctAnswers: totalCorrect,
+        correctAnswerRate: answers.length > 0 ?
+          Math.round((totalCorrect / answers.length) * 100) : 0,
+        // Question type breakdown
+        mcqCount: mcqQuestions.length,
+        structuredCount: structuredQuestions.length,
+        essayCount: essayQuestions.length,
+        mcqCorrect: mcqCorrect,
+        mcqRate: mcqQuestions.length > 0 ? Math.round((mcqCorrect / mcqQuestions.length) * 100) : 0
+      };
+    });
 
     res.json({
       success: true,

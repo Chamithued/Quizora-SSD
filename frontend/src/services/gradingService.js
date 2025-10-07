@@ -20,6 +20,19 @@ export const gradingService = {
     return response.data;
   },
 
+  // Get all already graded submissions for review/re-grading
+  getGradedSubmissions: async (filters = {}) => {
+    const params = new URLSearchParams();
+    
+    if (filters.moduleCode) params.append('moduleCode', filters.moduleCode);
+    if (filters.quizId) params.append('quizId', filters.quizId);
+    if (filters.limit) params.append('limit', filters.limit);
+    if (filters.page) params.append('page', filters.page);
+
+    const response = await api.get(`/grading/graded?${params.toString()}`);
+    return response.data;
+  },
+
   // Get detailed submission for grading
   getSubmissionForGrading: async (submissionId) => {
     const response = await api.get(`/grading/submission/${submissionId}`);
