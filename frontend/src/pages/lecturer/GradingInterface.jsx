@@ -51,16 +51,20 @@ const GradingInterface = () => {
 
       const response = await gradingService.getSubmissionForGrading(submissionId);
       
-      setSubmission(response?.submission);
-      setAnswers(response?.answers);
+      console.log('Frontend received response:', response);
+      console.log('Response data:', response?.data);
+      console.log('Submission data:', response?.data?.submission);
+      
+      setSubmission(response?.data?.submission);
+      setAnswers(response?.data?.answers || {});
 
       // Initialize grades with current values
       const initialGrades = {};
       const initialRubricScores = {};
       const initialSelectedRubrics = {};
       
-      const structuredAnswers = response?.answers?.structured || [];
-      const essayAnswers = response?.answers?.essay || [];
+      const structuredAnswers = response?.data?.answers?.structured || [];
+      const essayAnswers = response?.data?.answers?.essay || [];
       
       [...structuredAnswers, ...essayAnswers].forEach(answer => {
         initialGrades[answer.questionId] = {
@@ -69,7 +73,7 @@ const GradingInterface = () => {
         };
 
         // Load existing rubric data if available
-        if (answer.rubricScoring) {
+        if (answer.rubricScoring && answer.rubricScoring.criteriaScores) {
           const rubricScoring = answer.rubricScoring;
           
           // Find the rubric in available rubrics (will be loaded later)
@@ -92,7 +96,9 @@ const GradingInterface = () => {
       setRubricScores(initialRubricScores);
 
     } catch (err) {
-      setError(err.message || 'Failed to load submission data');
+      console.error('Load submission error:', err);
+      console.error('Error response:', err.response?.data);
+      setError(err.response?.data?.message || err.message || 'Failed to load submission data');
     } finally {
       setLoading(false);
     }
@@ -670,6 +676,15 @@ const GradingInterface = () => {
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Submission Not Found</h3>
         <p className="text-gray-600 mb-4">The submission you're looking for could not be loaded.</p>
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4 max-w-md mx-auto">
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        )}
+        <div className="text-xs text-gray-500 mb-4">
+          <p>Submission ID: {submissionId}</p>
+          <p>Check the grading dashboard for available submissions</p>
+        </div>
         <button
           onClick={() => navigate('/lecturer/grading')}
           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"

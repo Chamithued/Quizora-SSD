@@ -83,6 +83,30 @@ export const getSubmissionForGrading = async (req, res) => {
     const { submissionId } = req.params;
     const lecturerId = req.user._id;
 
+    console.log('Getting submission for grading:', { submissionId, lecturerId: lecturerId.toString() });
+
+    // Validate ObjectId format
+    if (!submissionId.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log('Invalid ObjectId format:', submissionId);
+      return res.status(400).json({ 
+        message: 'Invalid submission ID format',
+        submissionId 
+      });
+    }
+
+    // First, let's check if the submission exists at all
+    const anySubmission = await Result.findById(submissionId);
+    console.log('Submission exists:', !!anySubmission);
+    
+    if (anySubmission) {
+      console.log('Submission details:', {
+        id: anySubmission._id,
+        lecturerId: anySubmission.lecturerId,
+        status: anySubmission.status,
+        matchesLecturer: anySubmission.lecturerId.toString() === lecturerId.toString()
+      });
+    }
+
     // Get the submission (allow both pending and graded status for re-grading)
     const submission = await Result.findOne({
       _id: submissionId,
@@ -94,12 +118,29 @@ export const getSubmissionForGrading = async (req, res) => {
     .populate('moduleId', 'moduleCode moduleName');
 
     if (!submission) {
-      return res.status(404).json({ message: 'Submission not found' });
+      console.log('No submission found with criteria');
+      return res.status(404).json({ 
+        message: 'Submission not found',
+        debug: {
+          submissionId,
+          lecturerId: lecturerId.toString(),
+          submissionExists: !!anySubmission,
+          submissionLecturerId: anySubmission?.lecturerId?.toString(),
+          submissionStatus: anySubmission?.status
+        }
+      });
     }
+
+    console.log('Submission found successfully:', submission._id);
+    console.log('Submission has answers:', !!submission.answers);
+    console.log('Number of answers:', submission.answers?.length);
 
     // Get the questions to show correct answers and question details
     const questionIds = submission.answers.map(ans => ans.questionId);
+    console.log('Question IDs:', questionIds);
+    
     const questions = await Question.find({ _id: { $in: questionIds } });
+    console.log('Found questions:', questions.length);
 
     // Create a map for easy lookup
     const questionMap = {};
@@ -129,6 +170,15 @@ export const getSubmissionForGrading = async (req, res) => {
     const structuredAnswers = enhancedAnswers.filter(ans => ans.questionType === 'Structured');
     const essayAnswers = enhancedAnswers.filter(ans => ans.questionType === 'Essay');
 
+    console.log('Sending response with:', {
+      submissionId: submission._id,
+      studentId: submission.studentId,
+      mcqCount: mcqAnswers.length,
+      structuredCount: structuredAnswers.length,
+      essayCount: essayAnswers.length,
+      totalAnswers: enhancedAnswers.length
+    });
+
     res.json({
       success: true,
       data: {
@@ -152,6 +202,38 @@ export const getSubmissionForGrading = async (req, res) => {
 
   } catch (error) {
     console.error('Get submission for grading error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Debug endpoint to list all submissions for a lecturer
+export const getAllSubmissionsForLecturer = async (req, res) => {
+  try {
+    const lecturerId = req.user._id;
+    
+    const submissions = await Result.find({ lecturerId })
+      .populate('studentId', 'firstName lastName email')
+      .populate('quizId', 'title')
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    res.json({
+      success: true,
+      data: {
+        total: submissions.length,
+        submissions: submissions.map(sub => ({
+          _id: sub._id,
+          student: sub.studentId,
+          quiz: sub.quizId,
+          status: sub.status,
+          createdAt: sub.createdAt,
+          hasEssayQuestions: sub.answers.some(ans => ans.questionType === 'Essay' || ans.questionType === 'Structured')
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Get all submissions error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

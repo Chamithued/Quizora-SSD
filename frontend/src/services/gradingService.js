@@ -4,7 +4,7 @@ export const gradingService = {
   // Get grading statistics
   getGradingStats: async () => {
     const response = await api.get('/grading/stats');
-    return response.data;
+    return response;
   },
 
   // Get all submissions requiring manual grading
@@ -17,7 +17,7 @@ export const gradingService = {
     if (filters.page) params.append('page', filters.page);
 
     const response = await api.get(`/grading/pending?${params.toString()}`);
-    return response.data;
+    return response;
   },
 
   // Get all already graded submissions for review/re-grading
@@ -30,13 +30,13 @@ export const gradingService = {
     if (filters.page) params.append('page', filters.page);
 
     const response = await api.get(`/grading/graded?${params.toString()}`);
-    return response.data;
+    return response;
   },
 
   // Get detailed submission for grading
   getSubmissionForGrading: async (submissionId) => {
     const response = await api.get(`/grading/submission/${submissionId}`);
-    return response.data;
+    return response;
   },
 
   // Update manual grades for a submission
@@ -44,6 +44,6 @@ export const gradingService = {
     const response = await api.put(`/grading/submission/${submissionId}/grades`, {
       gradedAnswers
     });
-    return response.data;
+    return response;
   }
 };

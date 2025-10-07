@@ -11,6 +11,9 @@ router.use(authorize('lecturer'));
 // Get grading statistics for dashboard
 router.get('/stats', gradingController.getGradingStats);
 
+// Debug endpoint to get all submissions for a lecturer
+router.get('/all', gradingController.getAllSubmissionsForLecturer);
+
 // Get all submissions requiring manual grading
 router.get('/pending', gradingController.getPendingGradingSubmissions);
 
