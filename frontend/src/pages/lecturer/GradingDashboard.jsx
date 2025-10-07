@@ -51,14 +51,14 @@ const GradingDashboard = () => {
         gradingService.getPendingSubmissions(filters)
       ]);
 
-      setStats(statsResponse?.data || {
+      setStats(statsResponse || {
         pendingCount: 0,
         gradedCount: 0,
         submittedCount: 0,
         reviewedCount: 0,
         recentPending: []
       });
-      setSubmissions(submissionsResponse?.data || {
+      setSubmissions(submissionsResponse || {
         submissionsByQuiz: {},
         total: 0,
         page: 1,
