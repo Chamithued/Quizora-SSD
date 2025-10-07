@@ -61,7 +61,7 @@ const GradingDashboard = () => {
           : gradingService.getGradedSubmissions(filters)
       ]);
 
-      setStats(statsResponse || {
+      setStats(statsResponse?.data || {
         pendingCount: 0,
         gradedCount: 0,
         gradedManualCount: 0,
@@ -71,14 +71,14 @@ const GradingDashboard = () => {
       });
 
       if (activeTab === 'pending') {
-        setSubmissions(submissionsResponse || {
+        setSubmissions(submissionsResponse?.data || {
           submissionsByQuiz: {},
           total: 0,
           page: 1,
           totalPages: 1
         });
       } else {
-        setGradedSubmissions(submissionsResponse || {
+        setGradedSubmissions(submissionsResponse?.data || {
           submissionsByQuiz: {},
           total: 0,
           page: 1,
