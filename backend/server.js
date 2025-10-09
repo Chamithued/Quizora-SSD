@@ -98,6 +98,8 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/modules', moduleRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/grading', gradingRoutes);
+import resultRoutes from './routes/resultRoutes.js';
+app.use('/api/results', resultRoutes);
 app.use('/api/rubrics', rubricRoutes);
 
 // Health check
