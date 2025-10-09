@@ -800,16 +800,13 @@ export const submitQuiz = async (req, res) => {
     // Grade each answer
     for (const answerData of answers) {
       const question = questions.find(q => q._id.toString() === answerData.questionId);
-      
       if (!question) {
         console.log('Question not found for ID:', answerData.questionId);
         continue;
       }
-
       const maxMarks = 1;
       let isCorrect = false;
       let marks = 0;
-
       // Auto-grade MCQ questions
       if (question.type === 'MCQ' && question.options) {
         const correctOption = question.options.find(opt => opt.isCorrect);
@@ -818,15 +815,11 @@ export const submitQuiz = async (req, res) => {
           marks = maxMarks;
           totalScore += marks;
         }
-        totalMarks += maxMarks; // Only count MCQ questions in total for auto-grading
-      }
-      // For non-MCQ questions, mark as requiring manual grading
-      else if (question.type === 'Structured' || question.type === 'Essay') {
+        totalMarks += maxMarks;
+      } else if (question.type === 'Structured' || question.type === 'Essay') {
         hasManualGradingQuestions = true;
-        marks = 0; // Will be updated by lecturer after manual grading
-        // Don't add to totalMarks yet - will be added after manual grading
+        marks = 0;
       }
-
       gradedAnswers.push({
         questionId: question._id,
         questionText: question.questionText,
@@ -841,12 +834,15 @@ export const submitQuiz = async (req, res) => {
       });
     }
 
+    // Check if all questions are MCQ (even if answers are empty)
+    const allQuestionsAreMCQ = questions.length > 0 && questions.every(q => q.type === 'MCQ');
     const endTime = new Date();
 
     console.log('=== SCORE CALCULATION ===');
     console.log('Total score:', totalScore);
     console.log('Total marks:', totalMarks);
     console.log('Has manual grading questions:', hasManualGradingQuestions);
+    console.log('All questions are MCQ:', allQuestionsAreMCQ);
 
     let resultData;
     let status = 'submitted';
@@ -854,16 +850,20 @@ export const submitQuiz = async (req, res) => {
     let grade = 'F';
 
     if (hasManualGradingQuestions) {
-      // Quiz has structured/essay questions - requires manual grading
       status = 'pending_manual_review';
-      percentage = 0; // Will be calculated after manual grading
-      grade = 'F'; // Temporary grade
+      percentage = 0;
+      grade = 'F';
       console.log('Quiz requires manual grading - setting status to pending_manual_review');
-    } else {
-      // Only MCQ questions - can calculate final grade immediately
+    } else if (allQuestionsAreMCQ) {
       percentage = totalMarks > 0 ? Math.round((totalScore / totalMarks) * 100) : 0;
       grade = calculateGrade(percentage);
-      console.log('MCQ-only quiz - calculating final grade:', grade);
+      status = 'graded';
+      console.log('MCQ-only quiz (even with empty answers) - setting status to graded:', grade);
+    } else {
+      // Fallback for other cases
+      status = 'submitted';
+      percentage = 0;
+      grade = 'F';
     }
 
     resultData = {
