@@ -6,7 +6,6 @@ import {
   Plus, 
   Edit3, 
   Trash2, 
-  Copy, 
   Filter,
   BookOpen,
   Target,
@@ -106,17 +105,7 @@ const RubricManagement = () => {
     }
   };
 
-  const handleDuplicateRubric = async (rubricId, rubricTitle) => {
-    try {
-      await rubricService.duplicateRubric(rubricId, {
-        title: `${rubricTitle} (Copy)`
-      });
-      setSuccessMessage('Rubric duplicated successfully');
-      loadData(); // Reload data
-    } catch (err) {
-      setError(err.message || 'Failed to duplicate rubric');
-    }
-  };
+  // Duplicate functionality removed as per requirements
 
   const getRubricTypeIcon = (questionTypes) => {
     if (questionTypes.includes('Essay') && questionTypes.includes('Structured')) {
@@ -349,20 +338,13 @@ const RubricManagement = () => {
                     </button>
                     
                     <button
-                      onClick={() => navigate(`/lecturer/rubrics/${rubric._id}/edit`)}
+                      onClick={() => navigate(`/lecturer/rubrics/edit/${rubric._id}`)}
                       className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                     >
                       <Edit3 className="w-4 h-4 mr-1" />
                       Edit
                     </button>
                     
-                    <button
-                      onClick={() => handleDuplicateRubric(rubric._id, rubric.title)}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      <Copy className="w-4 h-4 mr-1" />
-                      Duplicate
-                    </button>
                     
                     <button
                       onClick={() => handleDeleteRubric(rubric._id, rubric.title)}

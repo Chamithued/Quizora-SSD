@@ -298,16 +298,14 @@ const RubricForm = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate('/lecturer/rubrics')}
-            className="inline-flex items-center text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Rubrics
-          </button>
-        </div>
+      <div className="flex items-center justify-start space-x-4">
+        <button
+          onClick={() => navigate('/lecturer/rubrics')}
+          className="inline-flex items-center text-gray-600 hover:text-gray-900"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Rubrics
+        </button>
         
         <h1 className="text-2xl font-bold text-gray-900">
           {isEditing ? 'Edit Rubric' : 'Create New Rubric'}
