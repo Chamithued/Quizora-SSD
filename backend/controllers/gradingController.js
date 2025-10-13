@@ -113,11 +113,11 @@ export const getSubmissionForGrading = async (req, res) => {
       });
     }
 
-    // Get the submission (allow both pending and graded status for re-grading)
+    // Get the submission (allow pending, graded, and reviewed for viewing)
     const submission = await Result.findOne({
       _id: submissionId,
       lecturerId,
-      status: { $in: ['pending_manual_review', 'graded'] }
+      status: { $in: ['pending_manual_review', 'graded', 'reviewed'] }
     })
     .populate('studentId', 'firstName lastName email')
     .populate('quizId', 'title description')
@@ -251,7 +251,7 @@ export const updateManualGrades = async (req, res) => {
     const { gradedAnswers } = req.body;
     const lecturerId = req.user._id;
 
-    // Get the submission (allow both pending and graded status for re-grading)
+    // Get the submission (allow both pending and graded status for re-grading). Prevent edits if reviewed.
     const submission = await Result.findOne({
       _id: submissionId,
       lecturerId,
@@ -260,6 +260,11 @@ export const updateManualGrades = async (req, res) => {
 
     if (!submission) {
       return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    // If submission is reviewed (finalized), block updates
+    if (submission.status === 'reviewed') {
+      return res.status(400).json({ message: 'Submission is finalized and cannot be edited' });
     }
 
     // Update the answers with manual grades
@@ -319,6 +324,66 @@ export const updateManualGrades = async (req, res) => {
 
   } catch (error) {
     console.error('Update manual grades error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Finalize a graded submission (sets status to reviewed and locks further edits)
+export const finalizeSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const lecturerId = req.user._id;
+
+    const submission = await Result.findOne({
+      _id: submissionId,
+      lecturerId,
+      status: 'graded'
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found or not in graded state' });
+    }
+
+    submission.status = 'reviewed';
+    await submission.save();
+
+    res.json({
+      success: true,
+      message: 'Submission finalized successfully',
+      data: { status: submission.status, grade: submission.grade, percentage: submission.percentage }
+    });
+  } catch (error) {
+    console.error('Finalize submission error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Unfinalize a reviewed submission (allows edits again by moving back to graded)
+export const unfinalizeSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const lecturerId = req.user._id;
+
+    const submission = await Result.findOne({
+      _id: submissionId,
+      lecturerId,
+      status: 'reviewed'
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found or not in reviewed state' });
+    }
+
+    submission.status = 'graded';
+    await submission.save();
+
+    res.json({
+      success: true,
+      message: 'Submission unfinalized successfully',
+      data: { status: submission.status, grade: submission.grade, percentage: submission.percentage }
+    });
+  } catch (error) {
+    console.error('Unfinalize submission error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -405,6 +470,71 @@ export const getGradedSubmissions = async (req, res) => {
 
   } catch (error) {
     console.error('Get graded submissions error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get finalized (reviewed) submissions
+export const getFinalizedSubmissions = async (req, res) => {
+  try {
+    const lecturerId = req.user._id;
+    const { moduleCode, quizId, limit = 50, page = 1 } = req.query;
+
+    const filter = {
+      lecturerId,
+      status: 'reviewed',
+      'answers.questionType': { $in: ['Structured', 'Essay'] }
+    };
+
+    if (moduleCode) filter.moduleCode = moduleCode;
+    if (quizId) filter.quizId = quizId;
+
+    const skip = (page - 1) * limit;
+    const submissions = await Result.find(filter)
+      .populate('studentId', 'firstName lastName email')
+      .populate('quizId', 'title description')
+      .populate('moduleId', 'moduleCode moduleName')
+      .sort({ updatedAt: -1 })
+      .limit(parseInt(limit))
+      .skip(skip);
+
+    const totalCount = await Result.countDocuments(filter);
+
+    const submissionsByQuiz = {};
+    submissions.forEach(submission => {
+      if (!submission.quizId || !submission.moduleId) return;
+      const quizKey = submission.quizId._id.toString();
+      if (!submissionsByQuiz[quizKey]) {
+        submissionsByQuiz[quizKey] = {
+          quiz: submission.quizId,
+          module: submission.moduleId,
+          submissions: []
+        };
+      }
+      submissionsByQuiz[quizKey].submissions.push({
+        _id: submission._id,
+        studentName: submission.studentName,
+        studentEmail: submission.studentEmail,
+        score: submission.score,
+        totalMarks: submission.totalMarks,
+        percentage: submission.percentage,
+        grade: submission.grade,
+        submittedAt: submission.createdAt,
+        gradedAt: submission.updatedAt
+      });
+    });
+
+    res.json({
+      success: true,
+      data: {
+        submissionsByQuiz,
+        totalCount,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Get finalized submissions error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
