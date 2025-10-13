@@ -1,5 +1,3 @@
-//frontend\src\components\student\Marksheet.jsx
-
 import React, { useState, useEffect } from "react";
 import { marksheetService } from "../../services/marksheetService";
 import jsPDF from "jspdf";
