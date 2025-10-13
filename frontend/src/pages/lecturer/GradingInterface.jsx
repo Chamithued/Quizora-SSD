@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { useParams, useNavigate } from 'react-router-dom';
 import { gradingService } from '../../services/gradingService';
 import { rubricService } from '../../services/rubricService';
@@ -10,6 +12,9 @@ import {
   CheckCircle,
   AlertCircle,
   Save,
+  Download,
+  Lock,
+  Unlock,
   Eye,
   Target,
   Star,
@@ -30,6 +35,7 @@ const GradingInterface = () => {
   const [selectedRubrics, setSelectedRubrics] = useState({});
   const [rubricScores, setRubricScores] = useState({});
   const [gradingMode, setGradingMode] = useState('traditional'); // 'traditional' or 'rubric'
+  const [finalizing, setFinalizing] = useState(false);
 
   useEffect(() => {
     loadSubmissionData();
@@ -329,6 +335,163 @@ const GradingInterface = () => {
       setError(err.message || 'Failed to save grades');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    try {
+      setFinalizing(true);
+      setError('');
+      setSuccessMessage('');
+      await gradingService.finalizeSubmission(submissionId);
+      setSuccessMessage('Submission finalized. Students can now see the mark.');
+      await loadSubmissionData();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to finalize submission');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const handleUnfinalize = async () => {
+    try {
+      setFinalizing(true);
+      setError('');
+      setSuccessMessage('');
+      await gradingService.unfinalizeSubmission(submissionId);
+      setSuccessMessage('Submission unlocked for editing.');
+      await loadSubmissionData();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to unfinalize submission');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    try {
+      const doc = new jsPDF();
+
+      // Header
+      doc.setFontSize(18);
+      doc.text('Submission Report', 105, 16, { align: 'center' });
+      doc.setFontSize(10);
+      const statusLabel = submission?.status === 'reviewed' ? 'Finalized' : 'Draft';
+      doc.text(`Status: ${statusLabel}`, 105, 22, { align: 'center' });
+
+      // Student & Quiz Info
+      const studentName = `${submission?.student?.firstName || ''} ${submission?.student?.lastName || ''}`.trim();
+      const studentEmail = submission?.student?.email || '';
+      const quizTitle = submission?.quiz?.title || '';
+      const moduleCode = submission?.module?.moduleCode || '';
+      const submittedAt = submission?.submittedAt ? new Date(submission.submittedAt).toLocaleString() : '';
+      const totals = calculateTotalGrades();
+
+      autoTable(doc, {
+        startY: 28,
+        theme: 'plain',
+        styles: { fontSize: 10, cellPadding: 2 },
+        body: [
+          ['Student', studentName],
+          ['Email', studentEmail],
+          ['Quiz', quizTitle],
+          ['Module', moduleCode],
+          ['Submitted', submittedAt],
+          ['Current Total', `${totals.totalMarks}/${totals.totalMaxMarks} (${totals.percentage}%)`]
+        ],
+        columns: [
+          { header: 'Field', dataKey: 'k' },
+          { header: 'Value', dataKey: 'v' }
+        ],
+        didParseCell: (data) => {
+          // data.table.body is an array of rows; our body is array of arrays, jsPDF-AutoTable maps them sequentially
+        }
+      });
+
+      let y = (doc.lastAutoTable && doc.lastAutoTable.finalY)
+        ? doc.lastAutoTable.finalY + 6
+        : 34;
+
+      // Questions Summary
+      const allAnswers = [
+        ...(answers.mcq || []),
+        ...(answers.structured || []),
+        ...(answers.essay || [])
+      ];
+
+      const rows = allAnswers.map((ans, index) => {
+        const questionText = ans?.questionDetails?.questionText || '';
+        const shortQ = questionText.length > 80 ? questionText.slice(0, 77) + '...' : questionText;
+        const marks = `${ans.marks ?? 0}/${ans.maxMarks ?? 1}`;
+        let note = '';
+        if (ans.questionType === 'MCQ') {
+          note = ans.isCorrect ? 'Correct' : 'Incorrect';
+        } else if (ans.rubricScoring && ans.rubricScoring.criteriaScores?.length) {
+          note = 'Rubric used';
+        }
+        return {
+          idx: index + 1,
+          type: ans.questionType,
+          question: shortQ,
+          marks,
+          note
+        };
+      });
+
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Type', 'Question', 'Marks', 'Note']],
+        body: rows.map(r => [r.idx, r.type, r.question, r.marks, r.note]),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [59, 130, 246] }
+      });
+
+      y = (doc.lastAutoTable && doc.lastAutoTable.finalY)
+        ? doc.lastAutoTable.finalY + 6
+        : y + 6;
+
+      // Optional detailed rubric breakdown
+      allAnswers.forEach((ans, i) => {
+        if (ans.rubricScoring && ans.rubricScoring.criteriaScores?.length) {
+          const qLabel = ans?.questionDetails?.questionText || `Question ${i + 1}`;
+          const label = qLabel.length > 80 ? qLabel.slice(0, 77) + '...' : qLabel;
+          doc.setFontSize(11);
+          doc.text(`Rubric Details: ${label}`, 14, y);
+          y += 2;
+          autoTable(doc, {
+            startY: y,
+            head: [['Criterion', 'Level', 'Points', 'Max', 'Weight', 'Feedback']],
+            body: ans.rubricScoring.criteriaScores.map(cs => [
+              cs.criterionName || '',
+              cs.selectedLevelName || '',
+              cs.points || 0,
+              cs.maxPoints || 0,
+              (cs.weight ?? 0) + '%',
+              cs.feedback || ''
+            ]),
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [147, 51, 234] }
+          });
+          y = (doc.lastAutoTable && doc.lastAutoTable.finalY)
+            ? doc.lastAutoTable.finalY + 6
+            : y + 6;
+        }
+      });
+
+      // Draft watermark if not finalized
+      if (submission?.status !== 'reviewed') {
+        doc.setFontSize(60);
+        doc.setTextColor(200, 200, 200);
+        doc.saveGraphicsState?.();
+        doc.text('DRAFT', 35, 160, { angle: 45, opacity: 0.2 });
+        doc.restoreGraphicsState?.();
+      }
+
+      const fileName = `Submission_${studentName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (e) {
+      // Non-fatal: just set an error banner
+      setError('Failed to generate PDF report.');
     }
   };
 
@@ -720,10 +883,11 @@ const GradingInterface = () => {
             </p>
           </div>
           
+          {/* Save disabled when reviewed */}
           <button
             onClick={handleSaveGrades}
-            disabled={saving}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+            disabled={saving || submission?.status === 'reviewed'}
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${submission?.status === 'reviewed' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50`}
           >
             {saving ? (
               <>
@@ -737,6 +901,54 @@ const GradingInterface = () => {
               </>
             )}
           </button>
+
+          {/* Download PDF */}
+          <button
+            onClick={handleDownloadPdf}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download PDF
+          </button>
+
+          {/* Finalize/Unfinalize Button */}
+          {submission?.status === 'reviewed' ? (
+            <button
+              onClick={handleUnfinalize}
+              disabled={finalizing}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50"
+            >
+              {finalizing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Unlocking...
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-4 h-4 mr-2" />
+                  Unfinalize
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={handleFinalize}
+              disabled={finalizing}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              {finalizing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Finalizing...
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4 mr-2" />
+                  Finalize Marks
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -762,6 +974,11 @@ const GradingInterface = () => {
                 {submission?.status === 'graded' && (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                     Re-grading
+                  </span>
+                )}
+                {submission?.status === 'reviewed' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    Finalized (Locked)
                   </span>
                 )}
               </div>
