@@ -10,4 +10,6 @@ router.use(authenticate);
 // Student: Get all finalized results (graded/reviewed)
 router.get('/student', authorize('student'), resultController.getStudentResults);
 
+// TEMP: Lecturer diagnostics - count results by moduleCode
+
 export default router;
