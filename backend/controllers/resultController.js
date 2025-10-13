@@ -1,14 +1,24 @@
+//backend\controllers\resultController.js
+
 import Result from '../models/Result.js';
 
-// Get all finalized results for the logged-in student
+// Get all published results for the logged-in student
 export const getStudentResults = async (req, res) => {
   try {
     const studentId = req.user._id;
     
-    // Only show results that are finalized (graded or reviewed)
+    // Publish only:
+    // - reviewed (finalized) submissions
+    // - OR graded submissions that are MCQ-only (no Structured/Essay answers)
     const results = await Result.find({
       studentId,
-      status: { $in: ['graded', 'reviewed'] }
+      $or: [
+        { status: 'reviewed' },
+        {
+          status: 'graded',
+          'answers.questionType': { $nin: ['Structured', 'Essay'] }
+        }
+      ]
     })
       .populate('quizId', 'title moduleId')
       .populate('moduleId', 'moduleCode moduleName')
