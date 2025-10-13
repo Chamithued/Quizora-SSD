@@ -39,7 +39,7 @@ export const quizService = {
   },
 
   getAnalytics: async (params = {}) => {
-    const response = await api.get('/quizzes/analytics', { params });
+    const response = await api.get('/quizzes/analytics', params);
     return response;
   },
 

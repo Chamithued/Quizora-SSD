@@ -1,6 +1,3 @@
-//frontend\src\pages\lecturer\GradingDashboard.jsx
-
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gradingService } from '../../services/gradingService';

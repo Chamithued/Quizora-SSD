@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { quizService } from '../../services/quizService';
 import { moduleService } from '../../services/moduleService';
 import { questionService } from '../../services/questionService';
 import { BarChart3, Users, TrendingUp, Award, CheckCircle, XCircle, Target, Filter, Eye, Trash2 } from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList } from 'recharts';
 
 const AnalyticsPage = () => {
+  const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState({
     moduleCode: 'all',
-    timeRange: '30d'
+    timeRange: '1y'
   });
   const [modules, setModules] = useState([]);
 
@@ -151,6 +154,8 @@ const AnalyticsPage = () => {
     }
   };
 
+  // Histogram now tied to top filters via analytics
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -204,6 +209,7 @@ const AnalyticsPage = () => {
               <option value="30d">Last 30 days</option>
               <option value="90d">Last 90 days</option>
               <option value="1y">Last year</option>
+              <option value="all">All time</option>
             </select>
           </div>
         </div>
@@ -248,14 +254,63 @@ const AnalyticsPage = () => {
           <div className="flex items-center">
             <Target className="w-8 h-8 text-purple-600" />
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Questions</p>
-              <p className="text-2xl font-bold text-gray-900">{analytics?.overall?.totalQuestions || 0}</p>
-              <p className="text-xs text-gray-500">
-                {analytics?.overall?.uniqueStudents || 0} students
-              </p>
+              <p className="text-sm font-medium text-gray-600">Highest Score</p>
+              <p className="text-2xl font-bold text-gray-900">{analytics?.overallStats?.highestScore || 0}%</p>
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Additional Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <Target className="w-8 h-8 text-purple-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Lowest Score</p>
+              <p className="text-2xl font-bold text-gray-900">{analytics?.overallStats?.lowestScore || 0}%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Marks Histogram */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Marks Distribution</h3>
+        </div>
+        {(() => {
+          const raw = analytics?.scoreDistribution || [];
+          const bins = [];
+          for (let start = 0; start <= 90; start += 10) {
+            const end = start === 90 ? 100 : start + 9;
+            const found = raw.find(b => b.rangeStart === start);
+            bins.push({ label: `${start}-${end}`, start, end, count: found?.count || 0 });
+          }
+          const total = bins.reduce((s, b) => s + b.count, 0);
+          if (total === 0) {
+            return (
+              <div className="h-64 flex items-center justify-center text-gray-500">
+                No data for this period.
+              </div>
+            );
+          }
+          return (
+            <div style={{ width: '100%', height: 320 }}>
+              <ResponsiveContainer>
+                <BarChart data={bins} margin={{ top: 10, right: 20, bottom: 24, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="label" angle={0} dy={8} tick={{ fontSize: 12 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value) => [`${value}`, 'Count']} labelFormatter={(l) => `Range: ${l}`} />
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4,4,0,0]}>
+                    <LabelList dataKey="count" position="top" formatter={(v) => (v > 0 ? v : '')} style={{ fontSize: 12 }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -492,7 +547,7 @@ const AnalyticsPage = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {analytics.recentSubmissions.map((submission, index) => (
-                  <tr key={index}>
+                  <tr key={index} onClick={() => submission._id && navigate(`/lecturer/grading/${submission._id}`)} className="cursor-pointer hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {submission.studentName}
                     </td>
