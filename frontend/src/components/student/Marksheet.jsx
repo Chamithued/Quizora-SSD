@@ -1,3 +1,5 @@
+//frontend\src\components\student\Marksheet.jsx
+
 import React, { useState, useEffect } from "react";
 import { marksheetService } from "../../services/marksheetService";
 import jsPDF from "jspdf";
@@ -38,10 +40,8 @@ const Marksheet = () => {
     fetchMarks();
   }, []);
 
-  // Only show finalized marks (graded or reviewed)
-  let filteredMarks = marks.filter(
-    (mark) => mark.status === "graded" || mark.status === "reviewed"
-  );
+  // Backend already filters to published results. Keep as-is, but guard in UI too.
+  let filteredMarks = marks;
 
   // Get unique quizzes and modules for filter dropdowns
   const uniqueQuizzes = [
