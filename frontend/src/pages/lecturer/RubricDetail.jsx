@@ -4,7 +4,6 @@ import { rubricService } from '../../services/rubricService';
 import { 
   ArrowLeft, 
   Edit3, 
-  Copy, 
   Trash2,
   Target,
   BookOpen,
@@ -52,18 +51,7 @@ const RubricDetail = () => {
     }
   };
 
-  const handleDuplicate = async () => {
-    try {
-      setError('');
-      const response = await rubricService.duplicateRubric(id);
-      setSuccessMessage('Rubric duplicated successfully!');
-      setTimeout(() => {
-        navigate(`/lecturer/rubrics/edit/${response.rubric._id}`);
-      }, 1500);
-    } catch (err) {
-      setError(err.message || 'Failed to duplicate rubric');
-    }
-  };
+  // Duplicate functionality removed as per requirements
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this rubric? This action cannot be undone.')) {
@@ -170,13 +158,6 @@ const RubricDetail = () => {
             Edit
           </button>
           
-          <button
-            onClick={handleDuplicate}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-          >
-            <Copy className="w-4 h-4 mr-2" />
-            Duplicate
-          </button>
           
           <button
             onClick={handleDelete}
