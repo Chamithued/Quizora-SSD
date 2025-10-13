@@ -5,6 +5,7 @@ import Module from '../models/Module.js';
 import Question from '../models/question.js';
 import User from '../models/User.js';
 import Result from '../models/Result.js';
+import mongoose from 'mongoose';
 
 // Helper function to calculate grade
 const calculateGrade = (percentage) => {
@@ -945,26 +946,53 @@ export const submitQuiz = async (req, res) => {
 export const getAnalytics = async (req, res) => {
   try {
     const lecturerId = req.user._id;
-    const { moduleCode, timeRange } = req.query;
+    const { moduleCode, moduleId, timeRange } = req.query;
 
     let dateFilter = {};
-    if (timeRange) {
-      const days = parseInt(timeRange.replace('d', ''));
-      dateFilter = {
-        createdAt: { $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
-      };
-    }
-
-    let moduleFilter = {};
-    if (moduleCode && moduleCode !== 'all') {
-      moduleFilter.moduleCode = moduleCode;
+    if (timeRange && timeRange !== 'all') {
+      let fromDate = null;
+      if (typeof timeRange === 'string') {
+        if (timeRange.endsWith('d')) {
+          const days = parseInt(timeRange.replace('d', '')) || 0;
+          fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        } else if (timeRange.endsWith('m')) {
+          const months = parseInt(timeRange.replace('m', '')) || 0;
+          const d = new Date();
+          d.setMonth(d.getMonth() - months);
+          fromDate = d;
+        } else if (timeRange.endsWith('y')) {
+          const years = parseInt(timeRange.replace('y', '')) || 0;
+          const d = new Date();
+          d.setFullYear(d.getFullYear() - years);
+          fromDate = d;
+        } else {
+          const days = parseInt(timeRange) || 0;
+          if (days > 0) fromDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        }
+      }
+      if (fromDate) {
+        dateFilter = { createdAt: { $gte: fromDate } };
+      }
     }
 
     const matchFilter = {
       lecturerId,
-      ...dateFilter,
-      ...moduleFilter
+      ...dateFilter
     };
+
+    // Apply module filter: if both are provided, match either; else match the one given
+    const normalizedCode = (moduleCode || '').toString().trim();
+    if (normalizedCode && normalizedCode !== 'all') {
+      const escaped = normalizedCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      matchFilter.moduleCode = { $regex: `^${escaped}$`, $options: 'i' };
+    } else if (moduleId && moduleId !== 'all') {
+      try {
+        matchFilter.moduleId = new mongoose.Types.ObjectId(moduleId);
+      } catch (e) {}
+    }
+
+    // Debug logging to verify filters applied (temporary)
+    // Debug logging removed
 
     const [
       overallStats,
@@ -973,7 +1001,8 @@ export const getAnalytics = async (req, res) => {
       recentSubmissions,
       performanceTrends,
       topPerformers,
-      questionAnalytics
+      questionAnalytics,
+      scoreDistribution
     ] = await Promise.all([
       Result.aggregate([
         { $match: matchFilter },
@@ -1148,6 +1177,49 @@ export const getAnalytics = async (req, res) => {
         },
         { $sort: { successRate: 1 } },
         { $limit: 10 }
+      ]),
+
+      // Score distribution by percentage buckets (0-9, 10-19, ..., 90-100)
+      Result.aggregate([
+        { $match: matchFilter },
+        {
+          $project: {
+            // Bucket percentages into tens; clamp to 0-90 so 100 goes into 90-100 bin
+            bucket: {
+              $let: {
+                vars: {
+                  raw: { $multiply: [{ $floor: { $divide: ['$percentage', 10] } }, 10] }
+                },
+                in: {
+                  $cond: [
+                    { $lt: ['$$raw', 0] }, 0,
+                    { $cond: [ { $gt: ['$$raw', 90] }, 90, '$$raw' ] }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: '$bucket',
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            rangeStart: '$_id',
+            rangeEnd: {
+              $cond: [
+                { $eq: ['$_id', 90] }, 100,
+                { $add: ['$_id', 9] }
+              ]
+            },
+            count: 1
+          }
+        },
+        { $sort: { rangeStart: 1 } }
       ])
     ]);
 
@@ -1192,7 +1264,8 @@ export const getAnalytics = async (req, res) => {
         recentSubmissions: enhancedRecentSubmissions,
         performanceTrends,
         topPerformers,
-        questionAnalytics
+        questionAnalytics,
+        scoreDistribution
       }
     });
 
