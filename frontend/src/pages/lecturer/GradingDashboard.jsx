@@ -1,3 +1,6 @@
+//frontend\src\pages\lecturer\GradingDashboard.jsx
+
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { gradingService } from '../../services/gradingService';
@@ -11,14 +14,15 @@ import {
   User,
   Search,
   Filter,
-  Eye
+  Eye,
+  Lock
 } from 'lucide-react';
 
 const GradingDashboard = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'graded'
+  const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'graded' | 'finalized'
   const [stats, setStats] = useState({
     pendingCount: 0,
     gradedCount: 0,
@@ -43,6 +47,7 @@ const GradingDashboard = () => {
     moduleCode: '',
     page: 1
   });
+  const [actionLoadingId, setActionLoadingId] = useState('');
 
   useEffect(() => {
     loadGradingData();
@@ -58,7 +63,9 @@ const GradingDashboard = () => {
         gradingService.getGradingStats(),
         activeTab === 'pending' 
           ? gradingService.getPendingSubmissions(filters)
-          : gradingService.getGradedSubmissions(filters)
+          : activeTab === 'graded'
+            ? gradingService.getGradedSubmissions(filters)
+            : gradingService.getFinalizedSubmissions(filters)
       ]);
 
       setStats(statsResponse?.data || {
@@ -77,7 +84,15 @@ const GradingDashboard = () => {
           page: 1,
           totalPages: 1
         });
+      } else if (activeTab === 'graded') {
+        setGradedSubmissions(submissionsResponse?.data || {
+          submissionsByQuiz: {},
+          total: 0,
+          page: 1,
+          totalPages: 1
+        });
       } else {
+        // reuse gradedSubmissions state shape for finalized view as well
         setGradedSubmissions(submissionsResponse?.data || {
           submissionsByQuiz: {},
           total: 0,
@@ -94,6 +109,19 @@ const GradingDashboard = () => {
 
   const handleViewSubmission = (submissionId) => {
     navigate(`/lecturer/grading/${submissionId}`);
+  };
+
+  const handleFinalize = async (submissionId) => {
+    try {
+      setActionLoadingId(submissionId);
+      setError('');
+      await gradingService.finalizeSubmission(submissionId);
+      await loadGradingData();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to finalize submission');
+    } finally {
+      setActionLoadingId('');
+    }
   };
 
   const formatDate = (date) => {
@@ -200,7 +228,21 @@ const GradingDashboard = () => {
             >
               <div className="flex items-center space-x-2">
                 <CheckCircle className="w-4 h-4" />
-                <span>Already Graded ({stats?.gradedManualCount || 0})</span>
+                <span>Needs Finalization ({stats?.gradedManualCount || 0})</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('finalized')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'finalized'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Lock className="w-4 h-4" />
+                <span>Finalized ({stats?.reviewedCount || 0})</span>
               </div>
             </button>
           </nav>
@@ -261,13 +303,24 @@ const GradingDashboard = () => {
                       All submissions have been graded or there are no submissions requiring manual review.
                     </p>
                   </>
-                ) : (
+                ) : activeTab === 'graded' ? (
                   <>
                     <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Graded Submissions</h3>
-                    <p className="text-gray-600">
-                      No manually graded submissions are available for review.
-                    </p>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No submissions need finalization</h3>
+                    <p className="text-gray-600">Graded submissions that include Structured/Essay will appear here until you finalize them.</p>
+                    <div className="mt-4 flex items-center justify-center space-x-3">
+                      <button onClick={() => setActiveTab('pending')} className="text-sm text-blue-600 hover:text-blue-700">Go to Pending Review</button>
+                      <span className="text-gray-300">|</span>
+                      <button onClick={() => setActiveTab('finalized')} className="text-sm text-blue-600 hover:text-blue-700">View Finalized</button>
+                      <span className="text-gray-300">|</span>
+                      <button onClick={() => loadGradingData()} className="text-sm text-blue-600 hover:text-blue-700">Refresh</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Finalized (Published) Submissions</h3>
+                    <p className="text-gray-600">Finalize graded submissions to publish results here.</p>
                   </>
                 )}
               </div>
@@ -351,13 +404,47 @@ const GradingDashboard = () => {
                           </>
                         )}
 
-                        <button
-                          onClick={() => handleViewSubmission(submission._id)}
-                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          {activeTab === 'pending' ? 'Grade' : 'Review & Edit'}
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleViewSubmission(submission._id)}
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            {activeTab === 'pending' ? 'Grade' : activeTab === 'graded' ? 'Review' : 'View'}
+                          </button>
+
+                          {activeTab === 'graded' && (
+                            <button
+                              onClick={() => handleFinalize(submission._id)}
+                              disabled={actionLoadingId === submission._id}
+                              className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                            >
+                              {actionLoadingId === submission._id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                  Finalizing...
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-4 h-4 mr-1" />
+                                  Finalize
+                                </>
+                              )}
+                            </button>
+                          )}
+
+                          {activeTab === 'finalized' && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-700">
+                              <Lock className="w-3 h-3 mr-1" /> Locked • Published
+                            </span>
+                          )}
+
+                          {activeTab === 'graded' && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-amber-100 text-amber-800">
+                              Editable
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
