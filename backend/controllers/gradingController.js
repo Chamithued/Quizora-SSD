@@ -39,6 +39,12 @@ export const getPendingGradingSubmissions = async (req, res) => {
     // Group submissions by quiz for better organization
     const submissionsByQuiz = {};
     submissions.forEach(submission => {
+      // Skip submissions with missing quiz or module references
+      if (!submission.quizId || !submission.moduleId) {
+        console.warn(`Skipping submission ${submission._id} - missing quiz or module reference`);
+        return;
+      }
+      
       const quizId = submission.quizId._id.toString();
       if (!submissionsByQuiz[quizId]) {
         submissionsByQuiz[quizId] = {
@@ -355,6 +361,12 @@ export const getGradedSubmissions = async (req, res) => {
     // Group submissions by quiz for better organization
     const submissionsByQuiz = {};
     submissions.forEach(submission => {
+      // Skip submissions with missing quiz or module references
+      if (!submission.quizId || !submission.moduleId) {
+        console.warn(`Skipping submission ${submission._id} - missing quiz or module reference`);
+        return;
+      }
+      
       const quizId = submission.quizId._id.toString();
       if (!submissionsByQuiz[quizId]) {
         submissionsByQuiz[quizId] = {
@@ -402,9 +414,34 @@ export const getGradingStats = async (req, res) => {
   try {
     const lecturerId = req.user._id;
 
-    // Get counts by status
+    // Get counts by status - using lookup to filter out null references
     const stats = await Result.aggregate([
       { $match: { lecturerId } },
+      // Lookup quiz to ensure it exists
+      {
+        $lookup: {
+          from: 'quizzes',
+          localField: 'quizId',
+          foreignField: '_id',
+          as: 'quiz'
+        }
+      },
+      // Lookup module to ensure it exists
+      {
+        $lookup: {
+          from: 'modules',
+          localField: 'moduleId',
+          foreignField: '_id',
+          as: 'module'
+        }
+      },
+      // Only count results with valid quiz and module references
+      {
+        $match: {
+          quiz: { $ne: [] },
+          module: { $ne: [] }
+        }
+      },
       {
         $group: {
           _id: '$status',
@@ -418,7 +455,7 @@ export const getGradingStats = async (req, res) => {
       statsMap[stat._id] = stat.count;
     });
 
-    // Get recent pending submissions
+    // Get recent pending submissions (with valid references only)
     const recentPending = await Result.find({
       lecturerId,
       status: 'pending_manual_review'
@@ -428,23 +465,30 @@ export const getGradingStats = async (req, res) => {
     .populate('moduleId', 'moduleCode')
     .sort({ createdAt: -1 })
     .limit(5);
+    
+    // Filter out submissions with null references
+    const validRecentPending = recentPending.filter(sub => sub.quizId && sub.moduleId);
 
-    // Get count of graded submissions with manual questions for review access
-    const gradedManualCount = await Result.countDocuments({
+    // Get count of graded submissions with manual questions for review access (with valid references)
+    const gradedManualResults = await Result.find({
       lecturerId,
       status: 'graded',
       'answers.questionType': { $in: ['Structured', 'Essay'] }
-    });
+    })
+    .populate('quizId')
+    .populate('moduleId');
+    
+    const gradedManualCount = gradedManualResults.filter(r => r.quizId && r.moduleId).length;
 
     res.json({
       success: true,
       data: {
         pendingCount: statsMap.pending_manual_review || 0,
         gradedCount: statsMap.graded || 0,
-        gradedManualCount: gradedManualCount, // New field for graded manual submissions
+        gradedManualCount: gradedManualCount,
         submittedCount: statsMap.submitted || 0,
         reviewedCount: statsMap.reviewed || 0,
-        recentPending: recentPending.map(sub => ({
+        recentPending: validRecentPending.map(sub => ({
           _id: sub._id,
           studentName: sub.studentName,
           quizTitle: sub.quizId?.title,
