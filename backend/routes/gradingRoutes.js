@@ -20,10 +20,19 @@ router.get('/pending', gradingController.getPendingGradingSubmissions);
 // Get all already graded submissions for review/re-grading
 router.get('/graded', gradingController.getGradedSubmissions);
 
+// Get all finalized (reviewed) submissions
+router.get('/finalized', gradingController.getFinalizedSubmissions);
+
 // Get detailed submission for grading (supports both pending and graded)
 router.get('/submission/:submissionId', gradingController.getSubmissionForGrading);
 
 // Update manual grades for a submission (supports both pending and graded)
 router.put('/submission/:submissionId/grades', gradingController.updateManualGrades);
+
+// Finalize grades for a submission (lock further edits)
+router.post('/submission/:submissionId/finalize', gradingController.finalizeSubmission);
+
+// Unfinalize grades for a submission (allow edits again)
+router.post('/submission/:submissionId/unfinalize', gradingController.unfinalizeSubmission);
 
 export default router;
