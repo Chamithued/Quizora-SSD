@@ -1,5 +1,3 @@
-//backend\controllers\resultController.js
-
 import Result from '../models/Result.js';
 
 // Get all published results for the logged-in student
@@ -30,3 +28,6 @@ export const getStudentResults = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+
+// TEMP: Count results by moduleCode for current lecturer
+// Removed diagnostic endpoint
