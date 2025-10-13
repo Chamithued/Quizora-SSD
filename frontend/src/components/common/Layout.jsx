@@ -102,7 +102,7 @@ const Layout = ({ children }) => {
             label: 'Quiz Management', 
             path: '/lecturer/quizzes', 
             icon: Calendar,
-            badge: '3'
+            badge: null
           },
           { 
             label: 'Manual Grading', 
