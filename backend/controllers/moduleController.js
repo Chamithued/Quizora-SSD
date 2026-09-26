@@ -1,15 +1,17 @@
 import Module from '../models/Module.js';
 import Question from '../models/question.js';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 export const getModules = async (req, res) => {
   try {
     const { search, year, semester } = req.query;
+    const searchRegex = createSearchRegex(search);
     const query = { createdBy: req.user._id, isActive: true };
 
-    if (search) {
+    if (searchRegex) {
       query.$or = [
-        { moduleCode: { $regex: search, $options: 'i' } },
-        { moduleName: { $regex: search, $options: 'i' } }
+        { moduleCode: { $regex: searchRegex } },
+        { moduleName: { $regex: searchRegex } }
       ];
     }
     if (year) query.moduleYear = parseInt(year);
@@ -42,6 +44,7 @@ export const getModules = async (req, res) => {
       modules: modulesWithQuestionCount
     });
   } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ message: error.message });
     console.error('Get modules error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
