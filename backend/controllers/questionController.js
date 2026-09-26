@@ -3,6 +3,32 @@ import Module from '../models/Module.js';
 import path from 'path';
 import fs from 'fs';
 
+const uploadsDir = path.resolve('uploads');
+
+const getUploadPath = (filename) => {
+  if (typeof filename !== 'string' || !filename ||
+      filename !== path.basename(filename) ||
+      filename.includes('..') || filename.includes('\\') ||
+      !/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) {
+    throw new Error('Invalid image filename');
+  }
+
+  const filePath = path.resolve(uploadsDir, path.basename(filename));
+  if (path.dirname(filePath) !== uploadsDir) {
+    throw new Error('Image path is outside uploads directory');
+  }
+  return filePath;
+};
+
+const deleteUpload = async (filename) => {
+  const filePath = getUploadPath(filename);
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+};
+
 export const createQuestion = async (req, res) => {
   try {
     const { 
@@ -199,6 +225,7 @@ export const updateQuestion = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = { ...req.body };
+    delete updateData.image;
 
     const question = await Question.findOne({ 
       _id: id, 
@@ -214,10 +241,7 @@ export const updateQuestion = async (req, res) => {
     if (req.file) {
       // Delete old image if exists
       if (question.image) {
-        const oldImagePath = path.join('uploads', question.image);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
+        await deleteUpload(question.image);
       }
       updateData.image = req.file.filename;
     }
@@ -283,17 +307,14 @@ export const deleteQuestion = async (req, res) => {
       return res.status(404).json({ message: 'Question not found' });
     }
 
+    // Delete associated image file
+    if (question.image) {
+      await deleteUpload(question.image);
+    }
+
     // Soft delete
     question.isActive = false;
     await question.save();
-
-    // Delete associated image file
-    if (question.image) {
-      const imagePath = path.join('uploads', question.image);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
-      }
-    }
 
     res.json({
       success: true,
