@@ -2,6 +2,7 @@ import Question from '../models/question.js';
 import Module from '../models/Module.js';
 import path from 'path';
 import fs from 'fs';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 const uploadsDir = path.resolve('uploads');
 
@@ -139,6 +140,7 @@ export const getQuestionsByModule = async (req, res) => {
   try {
     const { moduleId } = req.params;
     const { search, type, difficulty } = req.query;
+    const searchRegex = createSearchRegex(search);
 
     // Verify module access
     const module = await Module.findOne({ 
@@ -157,10 +159,10 @@ export const getQuestionsByModule = async (req, res) => {
       isActive: true
     };
 
-    if (search) {
+    if (searchRegex) {
       query.$or = [
-        { questionText: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } }
+        { questionText: { $regex: searchRegex } },
+        { tags: { $in: [searchRegex] } }
       ];
     }
 
@@ -183,6 +185,7 @@ export const getQuestionsByModule = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ message: error.message });
     console.error('Get questions by module error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -191,6 +194,7 @@ export const getQuestionsByModule = async (req, res) => {
 export const getQuestions = async (req, res) => {
   try {
     const { moduleCode, moduleYear, moduleSemester, search, type, difficulty } = req.query;
+    const searchRegex = createSearchRegex(search);
     
     const query = { createdBy: req.user._id, isActive: true };
     
@@ -200,10 +204,10 @@ export const getQuestions = async (req, res) => {
     if (type) query.type = type;
     if (difficulty) query.difficulty = difficulty;
     
-    if (search) {
+    if (searchRegex) {
       query.$or = [
-        { questionText: { $regex: search, $options: 'i' } },
-        { tags: { $in: [new RegExp(search, 'i')] } }
+        { questionText: { $regex: searchRegex } },
+        { tags: { $in: [searchRegex] } }
       ];
     }
 
@@ -216,6 +220,7 @@ export const getQuestions = async (req, res) => {
       questions
     });
   } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ message: error.message });
     console.error('Get questions error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }

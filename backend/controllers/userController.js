@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 // Degree options based on your requirements
 const DEGREE_OPTIONS = [
@@ -50,18 +51,19 @@ const DEGREE_OPTIONS = [
 export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 10, search } = req.query;
+    const searchRegex = createSearchRegex(search);
     const query = {};
     
     if (role && role !== 'all') {
       query.role = role;
     }
     
-    if (search) {
+    if (searchRegex) {
       query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { degreeTitle: { $regex: search, $options: 'i' } }
+        { firstName: { $regex: searchRegex } },
+        { lastName: { $regex: searchRegex } },
+        { email: { $regex: searchRegex } },
+        { degreeTitle: { $regex: searchRegex } }
       ];
     }
 
@@ -85,6 +87,7 @@ export const getUsers = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ message: error.message });
     console.error('Get users error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
