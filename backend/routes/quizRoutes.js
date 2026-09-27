@@ -7,10 +7,6 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
-// DEBUG ROUTES - TEMPORARY (Remove in production)
-router.get('/:id/debug-data', quizController.debugQuizData);
-router.get('/test-grade', quizController.testGradeCalculation);
-
 // Lecturer routes
 router.get('/', 
   authorize('lecturer'), 
