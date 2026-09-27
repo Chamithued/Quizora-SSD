@@ -130,8 +130,14 @@ app.use((err, req, res, next) => {
   }
   
   if (err.code === 'LIMIT_FILE_COUNT') {
-    return res.status(400).json({ 
-      message: 'Too many files. Maximum is 1 file.' 
+    return res.status(400).json({
+      message: 'Too many files. Maximum is 1 file.'
+    });
+  }
+
+  if (err.code === 'LIMIT_UNEXPECTED_FILE_TYPE') {
+    return res.status(400).json({
+      message: err.message
     });
   }
 
