@@ -1,0 +1,8 @@
+# Nmap 7.99 scan initiated Sun Sep 27 03:28:43 2026 as: /usr/lib/nmap/nmap --privileged -6 -sT -Pn -n -p- --reason -oN se4030-05-original-ipv6-tcp.txt ::1
+Nmap scan report for ::1
+Host is up, received user-set (0.000012s latency).
+Not shown: 65534 closed tcp ports (conn-refused)
+PORT     STATE SERVICE      REASON
+8090/tcp open  opsmessaging syn-ack
+
+# Nmap done at Sun Sep 27 03:28:44 2026 -- 1 IP address (1 host up) scanned in 0.29 seconds

@@ -1,0 +1,48 @@
+# Nmap 7.99 scan initiated Sun Sep 27 03:26:42 2026 as: /usr/lib/nmap/nmap --privileged -sT -Pn -n -p 3000,8090 --script +http-headers --reason -oN se4030-03-original-http-headers.txt 127.0.0.1
+Nmap scan report for 127.0.0.1
+Host is up, received user-set (0.000063s latency).
+
+PORT     STATE SERVICE      REASON
+3000/tcp open  ppp          syn-ack
+| http-headers: 
+|   X-Powered-By: Express
+|   Access-Control-Allow-Origin: *
+|   Access-Control-Allow-Methods: *
+|   Access-Control-Allow-Headers: *
+|   Content-Type: text/html; charset=utf-8
+|   Accept-Ranges: bytes
+|   Content-Length: 1711
+|   ETag: W/"6af-+M4OSPFNZpwKBdFEydrj+1+V5xo"
+|   Vary: Accept-Encoding
+|   Date: Sun, 27 Sep 2026 07:26:42 GMT
+|   Connection: close
+|   
+|_  (Request type: HEAD)
+8090/tcp open  opsmessaging syn-ack
+| http-headers: 
+|   Content-Security-Policy: default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests
+|   Cross-Origin-Opener-Policy: same-origin
+|   Origin-Agent-Cluster: ?1
+|   Referrer-Policy: no-referrer
+|   Strict-Transport-Security: max-age=31536000; includeSubDomains
+|   X-Content-Type-Options: nosniff
+|   X-DNS-Prefetch-Control: off
+|   X-Download-Options: noopen
+|   X-Frame-Options: SAMEORIGIN
+|   X-Permitted-Cross-Domain-Policies: none
+|   X-XSS-Protection: 0
+|   Vary: Origin
+|   Access-Control-Allow-Credentials: true
+|   RateLimit-Policy: 1000;w=900
+|   RateLimit-Limit: 1000
+|   RateLimit-Remaining: 993
+|   RateLimit-Reset: 735
+|   Content-Type: application/json; charset=utf-8
+|   Content-Length: 40
+|   ETag: W/"28-9EJ11R+5K5ALJrVsh4RK5HJzzSQ"
+|   Date: Sun, 27 Sep 2026 07:26:42 GMT
+|   Connection: close
+|   
+|_  (Request type: GET)
+
+# Nmap done at Sun Sep 27 03:26:42 2026 -- 1 IP address (1 host up) scanned in 0.06 seconds

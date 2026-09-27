@@ -1,0 +1,14 @@
+# Nmap 7.99 scan initiated Sun Sep 27 03:29:37 2026 as: /usr/lib/nmap/nmap --privileged -sT -Pn -n -p 3000,8090 --script +http-methods -v --reason -oN se4030-06-original-http-methods.txt 127.0.0.1
+Nmap scan report for 127.0.0.1
+Host is up, received user-set (0.000034s latency).
+
+PORT     STATE SERVICE      REASON
+3000/tcp open  ppp          syn-ack
+| http-methods: 
+|_  Supported Methods: GET HEAD POST OPTIONS
+8090/tcp open  opsmessaging syn-ack
+| http-methods: 
+|_  Supported Methods: GET HEAD POST OPTIONS
+
+Read data files from: /usr/share/nmap
+# Nmap done at Sun Sep 27 03:29:37 2026 -- 1 IP address (1 host up) scanned in 0.07 seconds

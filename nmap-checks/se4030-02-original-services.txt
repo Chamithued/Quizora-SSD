@@ -1,0 +1,30 @@
+# Nmap 7.99 scan initiated Sun Sep 27 03:24:44 2026 as: /usr/lib/nmap/nmap --privileged -sT -Pn -n -sV --version-light -p 3000,8090 --reason -oN se4030-02-original-services.txt 127.0.0.1
+Nmap scan report for 127.0.0.1
+Host is up, received user-set (0.000074s latency).
+
+PORT     STATE SERVICE       REASON  VERSION
+3000/tcp open  http          syn-ack Node.js (Express middleware)
+8090/tcp open  opsmessaging? syn-ack
+1 service unrecognized despite returning data. If you know the service/version, please submit the following fingerprint at https://nmap.org/cgi-bin/submit.cgi?new-service :
+SF-Port8090-TCP:V=7.99%I=2%D=9/27%Time=6AB8C4C7%P=aarch64-unknown-linux-gn
+SF:u%r(GetRequest,3EE,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Securit
+SF:y-Policy:\x20default-src\x20'self';base-uri\x20'self';font-src\x20'self
+SF:'\x20https:\x20data:;form-action\x20'self';frame-ancestors\x20'self';im
+SF:g-src\x20'self'\x20data:;object-src\x20'none';script-src\x20'self';scri
+SF:pt-src-attr\x20'none';style-src\x20'self'\x20https:\x20'unsafe-inline';
+SF:upgrade-insecure-requests\r\nCross-Origin-Opener-Policy:\x20same-origin
+SF:\r\nOrigin-Agent-Cluster:\x20\?1\r\nReferrer-Policy:\x20no-referrer\r\n
+SF:Strict-Transport-Security:\x20max-age=31536000;\x20includeSubDomains\r\
+SF:nX-Content-Type-Options:\x20nosniff\r\nX-DNS-Prefetch-Control:\x20off\r
+SF:\nX-Download-Options:\x20noopen\r\nX-Frame-Options:\x20SAMEORIGIN\r\nX-
+SF:Permitted-Cross-Domain-Policies:\x20none\r\nX-XSS-Protection:\x200\r\nV
+SF:ary:\x20Origin\r\nAccess-Control-Allow-Credentials:\x20true\r\nRateLimi
+SF:t-Policy:\x201000;w=900\r\nRateLimit-Limit:\x201000\r\nRateLimit-Remain
+SF:ing:\x20995\r\nRateLimit-Reset:\x20843\r\nContent-Type:\x20application/
+SF:json;\x20charset=utf-8\r\nContent-Length:\x2040\r\nETag:\x20W/\"28-9EJ1
+SF:1R\+5K5ALJrVsh4RK5H")%r(SSLSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Re
+SF:quest\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1\.1\x
+SF:20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n");
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Sun Sep 27 03:24:55 2026 -- 1 IP address (1 host up) scanned in 11.18 seconds
