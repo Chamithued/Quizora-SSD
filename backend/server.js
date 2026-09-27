@@ -23,6 +23,9 @@ dotenv.config();
 
 const app = express();
 
+// Remove framework fingerprinting
+app.disable('x-powered-by');
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.resolve('uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -72,16 +75,31 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static files for uploaded images
 app.use('/uploads', express.static(uploadsDir));
 
-// General rate limiting
-const limiter = rateLimit({ 
+// 1. General API Rate Limiting (Mitigate DoS floods)
+const generalLimiter = rateLimit({ 
   windowMs: 15 * 60 * 1000,
-  limit: 1000,
+  limit: 100, // Reduced from 1000 to standard 100 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Too many requests, please try again later.'
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again after 15 minutes.'
+  }
 });
-app.use(limiter);
+app.use('/api', generalLimiter);
 
+// 2. Strict Auth Rate Limiting (Mitigate Brute-Force & Credential Stuffing)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5, // Maximum 5 failed attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many login attempts from this IP, please try again after 15 minutes.'
+  }
+});
+app.use('/api/auth/login', authLimiter);
 // Database connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
