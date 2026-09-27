@@ -73,16 +73,5 @@ export const quizService = {
   updateQuizStatuses: async () => {
     const response = await api.post('/quizzes/update-statuses');
     return response;
-  },
-
-  // Debug endpoints (temporary)
-  debugQuizData: async (quizId) => {
-    const response = await api.get(`/quizzes/${quizId}/debug-data`);
-    return response;
-  },
-
-  testGradeCalculation: async () => {
-    const response = await api.get('/quizzes/test-grade');
-    return response;
   }
 };
