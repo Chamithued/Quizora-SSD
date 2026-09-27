@@ -16,6 +16,13 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
+    // Reject non-string inputs to prevent NoSQL operator injection, e.g. a body
+    // like { "email": { "$gt": "" } } which Mongo would treat as an operator
+    // and use to match an arbitrary user instead of a literal address.
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
     // Find user by email and include password for comparison
     const user = await User.findOne({ email }).select('+password');
     

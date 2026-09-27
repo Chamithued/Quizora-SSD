@@ -101,6 +101,12 @@ export const createUser = async (req, res) => {
       return res.status(400).json({ message: 'All basic fields are required' });
     }
 
+    // Reject non-string email/password to prevent NoSQL operator injection in
+    // the User.findOne({ email }) lookup below.
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Invalid email or password format' });
+    }
+
     // Validate student-specific fields
     if (role === 'student') {
       if (!degreeTitle || !currentYear || !currentSemester) {
@@ -165,6 +171,12 @@ export const updateUser = async (req, res) => {
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Reject a non-string email to prevent NoSQL operator injection in the
+    // duplicate-email lookup below.
+    if (email !== undefined && typeof email !== 'string') {
+      return res.status(400).json({ message: 'Invalid email format' });
     }
 
     // Check if email is being changed and if it already exists
