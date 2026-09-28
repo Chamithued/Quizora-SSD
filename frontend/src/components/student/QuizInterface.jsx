@@ -1,6 +1,7 @@
 // frontend/src/components/student/QuizInterface.jsx
 
 import { useState, useEffect, useCallback } from 'react';
+import { ASSET_BASE_URL } from '../../services/apiConfig';
 import { Clock, BookOpen, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const QuizInterface = ({ quiz, questions, onSubmitQuiz }) => {
@@ -316,7 +317,7 @@ const QuizInterface = ({ quiz, questions, onSubmitQuiz }) => {
                 {currentQuestion.image && (
                   <div className="mb-4">
                     <img 
-                      src={`http://localhost:5001/uploads/${currentQuestion.image}`}
+                      src={`${ASSET_BASE_URL}/uploads/${currentQuestion.image}`}
                       alt="Question illustration"
                       className="max-w-full h-auto rounded-lg border"
                     />

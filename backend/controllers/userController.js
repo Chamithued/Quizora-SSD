@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 
 // Degree options based on your requirements
-const DEGREE_OPTIONS = [
+export const DEGREE_OPTIONS = [
   // Faculty of Computing
   { code: 'COM-101', title: 'BSc (Hons) in Information Technology', faculty: 'Faculty of Computing' },
   { code: 'COM-102', title: 'BSc (Hons) in Software Engineering', faculty: 'Faculty of Computing' },
@@ -50,7 +50,7 @@ const DEGREE_OPTIONS = [
 export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 10, search } = req.query;
-    const query = {};
+    const query = { approvalStatus: { $ne: 'pending' } };
     
     if (role && role !== 'all') {
       query.role = role;
@@ -162,6 +162,10 @@ export const updateUser = async (req, res) => {
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.approvalStatus === 'pending') {
+      return res.status(409).json({ message: 'Use the registration approval action for pending accounts.' });
     }
 
     // Check if email is being changed and if it already exists

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import UserModal from '../../components/admin/UserModal';
+import PendingApprovals from '../../components/admin/PendingApprovals';
 import { Users, UserPlus, Search, Filter, Eye, Edit, Trash2, Crown, GraduationCap, BookOpen } from 'lucide-react';
 
 const UsersPage = () => {
@@ -290,6 +291,7 @@ const UsersPage = () => {
 
   return (
     <div className="space-y-8 bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen p-6">
+      <PendingApprovals onApproved={fetchUsers} />
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-purple-700 px-8 py-6">

@@ -8,6 +8,7 @@ import {
   getDegreeOptions
 } from '../controllers/userController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { approvals } from '../controllers/approvalController.js';
 
 const router = express.Router();
 
@@ -18,6 +19,9 @@ router.use(authenticate);
 router.get('/degrees', getDegreeOptions);
 
 // Admin only routes
+router.get('/pending', authorize('admin'), approvals.pending);
+router.post('/:id/approve', authorize('admin'), approvals.approve);
+router.post('/:id/reject', authorize('admin'), approvals.reject);
 router.get('/', authorize('admin'), getUsers);
 router.post('/', authorize('admin'), createUser);
 router.put('/:id', authorize('admin'), updateUser);

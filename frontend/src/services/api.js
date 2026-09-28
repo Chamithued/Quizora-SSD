@@ -1,5 +1,4 @@
-// API service pointing to port 5001
-const API_BASE_URL = 'http://localhost:5001/api';
+import { API_BASE_URL } from './apiConfig';
 
 class ApiService {
   constructor(baseURL) {
@@ -26,7 +25,7 @@ class ApiService {
     try {
       const response = await fetch(url, config);
       
-      if (response.status === 401) {
+      if (response.status === 401 && endpoint !== '/auth/login' && !endpoint.startsWith('/auth/google/')) {
         localStorage.removeItem('token');
         window.location.href = '/login';
         throw new Error('Unauthorized');
@@ -67,6 +66,12 @@ class ApiService {
     return this.request(endpoint, {
       method: 'POST',
       body: data,
+    });
+  }
+
+  googleAuth(action, data = {}) {
+    return this.request(`/auth/google/${action}`, {
+      method: 'POST', body: data, credentials: 'include'
     });
   }
 

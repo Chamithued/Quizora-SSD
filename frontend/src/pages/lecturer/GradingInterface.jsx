@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ASSET_BASE_URL } from '../../services/apiConfig';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -571,7 +572,7 @@ const GradingInterface = () => {
             {question?.image && (
               <div className="mt-3">
                 <img
-                  src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/${question.image}`}
+                  src={`${ASSET_BASE_URL}/uploads/${question.image}`}
                   alt="Question"
                   className="max-w-md h-auto border border-gray-300 rounded-lg"
                 />

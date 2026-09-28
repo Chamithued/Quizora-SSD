@@ -21,9 +21,21 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
+    required: function() { return this.authProvider !== 'google'; },
     minlength: 6
   },
+  // Google's stable subject identifier. Never link accounts by email alone.
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    select: false
+  },
+  authProvider: { type: String, enum: ['local', 'google'], default: 'local' },
+  approvalStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
+  requestedRole: { type: String, enum: ['admin', 'lecturer', 'student'] },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvedAt: Date,
   role: {
     type: String,
     enum: ['admin', 'lecturer', 'student'],
@@ -33,7 +45,7 @@ const userSchema = new mongoose.Schema({
   degreeTitle: {
     type: String,
     required: function() {
-      return this.role === 'student';
+      return this.role === 'student' && this.approvalStatus === 'approved';
     }
   },
   currentYear: {
@@ -41,14 +53,14 @@ const userSchema = new mongoose.Schema({
     min: [1, 'Year must be at least 1'],
     max: [4, 'Year cannot exceed 4'],
     required: function() {
-      return this.role === 'student';
+      return this.role === 'student' && this.approvalStatus === 'approved';
     }
   },
   currentSemester: {
     type: Number,
     enum: [1, 2],
     required: function() {
-      return this.role === 'student';
+      return this.role === 'student' && this.approvalStatus === 'approved';
     }
   },
   isActive: {
@@ -69,7 +81,7 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving - CRITICAL FOR PASSWORD UPDATES
 userSchema.pre('save', async function(next) {
   // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     console.log('Password not modified, skipping hash for user:', this.email);
     return next();
   }
@@ -112,6 +124,7 @@ userSchema.virtual('fullName').get(function() {
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
   delete user.password;
+  delete user.googleId;
   return user;
 };
 
@@ -119,6 +132,7 @@ userSchema.methods.toJSON = function() {
 userSchema.set('toJSON', { 
   transform: function(doc, ret) {
     delete ret.password;
+    delete ret.googleId;
     return ret;
   }
 });

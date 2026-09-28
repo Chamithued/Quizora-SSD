@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -48,9 +48,26 @@ const authReducer = (state, action) => {
 
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  const initialized = useRef(false);
 
   useEffect(() => {
+    // React StrictMode runs effects twice; completion cookies are single-use.
+    if (initialized.current) return;
+    initialized.current = true;
     const initAuth = async () => {
+      const params = new URLSearchParams(window.location.search);
+      if (window.location.pathname === '/login' && params.get('google') === 'complete') {
+        window.history.replaceState({}, '', '/login');
+        try {
+          const { token, user } = await api.googleAuth('complete');
+          localStorage.setItem('token', token);
+          dispatch({ type: 'LOGIN_SUCCESS', payload: { token, user } });
+        } catch (error) {
+          localStorage.removeItem('token');
+          dispatch({ type: 'LOGIN_FAILURE', payload: error.message });
+        }
+        return;
+      }
       const token = localStorage.getItem('token');
       if (token) {
         try {
@@ -99,6 +116,11 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' });
   };
 
+  const refreshProfile = async () => {
+    const response = await api.get('/auth/profile');
+    dispatch({ type: 'LOGIN_SUCCESS', payload: { user: response.user, token: localStorage.getItem('token') } });
+  };
+
   const clearError = () => {
     dispatch({ type: 'CLEAR_ERROR' });
   };
@@ -107,6 +129,7 @@ export const AuthProvider = ({ children }) => {
     ...state,
     login,
     logout,
+    refreshProfile,
     clearError
   };
 

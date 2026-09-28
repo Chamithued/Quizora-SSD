@@ -1,6 +1,6 @@
 import api from './api';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+import { API_BASE_URL } from './apiConfig';
 
 export const questionService = {
   getQuestionsByModule: async (moduleId, params = {}) => {
@@ -10,7 +10,7 @@ export const questionService = {
 
   createQuestion: async (formData) => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE}/api/questions`, {
+    const response = await fetch(`${API_BASE_URL}/questions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -28,7 +28,7 @@ export const questionService = {
 
   updateQuestion: async (id, formData) => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE}/api/questions/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`
