@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import AuthSession from '../models/AuthSession.js';
 
 export const authenticate = async (req, res, next) => {
   try {
@@ -9,7 +10,20 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    // Pre-fix tokens have no session ID and must not retain access after rollout.
+    if (typeof decoded.jti !== 'string' || typeof decoded.id !== 'string' ||
+        !Number.isFinite(decoded.exp)) {
+      return res.status(401).json({ message: 'Invalid session. Please log in again.' });
+    }
+    const session = await AuthSession.findOne({
+      _id: decoded.jti,
+      userId: decoded.id,
+      expiresAt: { $gt: new Date() }
+    });
+    if (!session) {
+      return res.status(401).json({ message: 'Session expired or logged out.' });
+    }
     const user = await User.findById(decoded.id).select('-password');
     
     if (!user || !user.isActive) {
@@ -17,9 +31,14 @@ export const authenticate = async (req, res, next) => {
     }
 
     req.user = user;
+    req.auth = { sessionId: decoded.jti };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Invalid token' });
+    if (['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    // A storage outage must deny access without pretending a logout succeeded.
+    res.status(503).json({ message: 'Unable to verify session. Please try again.' });
   }
 };
 
