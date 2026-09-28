@@ -1,4 +1,5 @@
 import Question from '../models/question.js';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 // Create a new question (lecturer only)
 export const createQuestion = async (data, lecturerId) => {
@@ -23,10 +24,11 @@ export const getQuestionsByLecturer = async (lecturerId, filters = {}) => {
   if (filters.difficulty) query.difficulty = filters.difficulty;
   
   // Search in question text and tags
-  if (filters.search) {
+  const searchRegex = createSearchRegex(filters.search);
+  if (searchRegex) {
     query.$or = [
-      { questionText: { $regex: filters.search, $options: 'i' } },
-      { tags: { $in: [new RegExp(filters.search, 'i')] } }
+      { questionText: { $regex: searchRegex } },
+      { tags: { $in: [searchRegex] } }
     ];
   }
   

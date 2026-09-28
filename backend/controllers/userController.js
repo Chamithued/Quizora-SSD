@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 // Degree options based on your requirements
 export const DEGREE_OPTIONS = [
@@ -50,18 +51,19 @@ export const DEGREE_OPTIONS = [
 export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 10, search } = req.query;
+    const searchRegex = createSearchRegex(search);
     const query = { approvalStatus: { $ne: 'pending' } };
     
     if (role && role !== 'all') {
       query.role = role;
     }
     
-    if (search) {
+    if (searchRegex) {
       query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { degreeTitle: { $regex: search, $options: 'i' } }
+        { firstName: { $regex: searchRegex } },
+        { lastName: { $regex: searchRegex } },
+        { email: { $regex: searchRegex } },
+        { degreeTitle: { $regex: searchRegex } }
       ];
     }
 
@@ -85,6 +87,7 @@ export const getUsers = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof RangeError) return res.status(400).json({ message: error.message });
     console.error('Get users error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -96,6 +99,12 @@ export const createUser = async (req, res) => {
 
     if (!firstName || !lastName || !email || !password || !role) {
       return res.status(400).json({ message: 'All basic fields are required' });
+    }
+
+    // Reject non-string email/password to prevent NoSQL operator injection in
+    // the User.findOne({ email }) lookup below.
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Invalid email or password format' });
     }
 
     // Validate student-specific fields
@@ -166,6 +175,11 @@ export const updateUser = async (req, res) => {
 
     if (user.approvalStatus === 'pending') {
       return res.status(409).json({ message: 'Use the registration approval action for pending accounts.' });
+    }
+    // Reject a non-string email to prevent NoSQL operator injection in the
+    // duplicate-email lookup below.
+    if (email !== undefined && typeof email !== 'string') {
+      return res.status(400).json({ message: 'Invalid email format' });
     }
 
     // Check if email is being changed and if it already exists

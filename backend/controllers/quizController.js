@@ -5,7 +5,19 @@ import Module from '../models/Module.js';
 import Question from '../models/question.js';
 import User from '../models/User.js';
 import Result from '../models/Result.js';
+import QuizAccess from '../models/QuizAccess.js';
 import mongoose from 'mongoose';
+
+// Shared eligibility check so the same rule is enforced everywhere a student
+// interacts with a quiz (verify-passcode, fetch questions, submit).
+const isStudentEligible = (quiz, student) => {
+  return quiz.eligibilityCriteria.some(criteria => {
+    const degreeMatch = criteria.degreeTitle === student.degreeTitle;
+    const yearMatch = criteria.year === (student.academicYear || student.currentYear);
+    const semesterMatch = criteria.semester === (student.semester || student.currentSemester);
+    return degreeMatch && yearMatch && semesterMatch;
+  });
+};
 
 // Helper function to calculate grade
 const calculateGrade = (percentage) => {
@@ -21,83 +33,6 @@ const calculateGrade = (percentage) => {
   else if (percentage >= 45) return 'D+';
   else if (percentage >= 40) return 'D';
   else return 'F';
-};
-
-// ============================
-// DEBUG FUNCTIONS - TEMPORARY
-// ============================
-
-export const debugQuizData = async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    console.log('=== QUIZ DEBUG ===');
-    console.log('Quiz ID searched:', id);
-    
-    const quiz = await Quiz.findById(id);
-    console.log('Quiz found:', !!quiz);
-    
-    if (quiz) {
-      console.log('Quiz details:', {
-        id: quiz._id,
-        title: quiz.title,
-        passcode: quiz.passcode,
-        status: quiz.status,
-        isActive: quiz.isActive,
-        eligibilityCriteria: quiz.eligibilityCriteria
-      });
-    }
-    
-    const allQuizzes = await Quiz.find({ isActive: true }).select('title passcode status');
-    console.log('All active quizzes:', allQuizzes);
-    
-    res.json({
-      quizExists: !!quiz,
-      quiz: quiz ? {
-        id: quiz._id,
-        title: quiz.title,
-        passcode: quiz.passcode,
-        status: quiz.status,
-        eligibilityCriteria: quiz.eligibilityCriteria
-      } : null,
-      allQuizzes: allQuizzes.map(q => ({
-        id: q._id,
-        title: q.title,
-        passcode: q.passcode,
-        status: q.status
-      }))
-    });
-    
-  } catch (error) {
-    console.error('Debug error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const testGradeCalculation = async (req, res) => {
-  try {
-    console.log('Testing grade calculation...');
-    
-    const testPercentages = [95, 87, 82, 77, 72, 67, 62, 57, 52, 47, 42, 30];
-    const results = [];
-    
-    for (const percentage of testPercentages) {
-      const grade = calculateGrade(percentage);
-      results.push({ percentage, grade });
-    }
-    
-    console.log('Grade calculation test results:', results);
-    
-    res.json({
-      success: true,
-      message: 'Grade calculation test completed',
-      results
-    });
-    
-  } catch (error) {
-    console.error('Test grade calculation error:', error);
-    res.status(500).json({ error: error.message });
-  }
 };
 
 // ============================
@@ -610,6 +545,22 @@ export const verifyQuizPasscode = async (req, res) => {
 
     console.log('Passcode verification successful');
 
+    // Record a server-side access grant so getQuizQuestions/submitQuiz can
+    // confirm this student passed the passcode + eligibility gate. The grant
+    // lasts for the student's allowed duration (plus a small buffer) but never
+    // beyond the quiz end time.
+    const grantBufferMs = 5 * 60 * 1000; // 5 minute buffer for clock skew / network
+    const durationMs = (quiz.duration || 0) * 60 * 1000;
+    const grantExpiry = new Date(Math.min(
+      Date.now() + durationMs + grantBufferMs,
+      quizEnd.getTime() + grantBufferMs
+    ));
+    await QuizAccess.findOneAndUpdate(
+      { studentId: student._id, quizId: quiz._id },
+      { studentId: student._id, quizId: quiz._id, expiresAt: grantExpiry },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     res.json({
       success: true,
       message: 'Passcode verified successfully',
@@ -658,9 +609,25 @@ export const getQuizQuestions = async (req, res) => {
     const isCurrentlyActive = now >= quizStart && now <= quizEnd;
 
     if (!isCurrentlyActive) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: quiz.status === 'scheduled' ? 'Quiz has not started yet' : 'Quiz has ended'
       });
+    }
+
+    // Enforce eligibility server-side (not just in verify-passcode).
+    if (!isStudentEligible(quiz, student)) {
+      return res.status(403).json({ message: 'You are not eligible for this quiz' });
+    }
+
+    // Require a valid access grant proving this student passed the passcode gate.
+    const accessGrant = await QuizAccess.findOne({
+      studentId: student._id,
+      quizId: quiz._id,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!accessGrant) {
+      return res.status(403).json({ message: 'Passcode verification required before accessing this quiz' });
     }
 
     const existingResult = await Result.findOne({
@@ -669,8 +636,8 @@ export const getQuizQuestions = async (req, res) => {
     });
 
     if (existingResult) {
-      return res.status(400).json({ 
-        message: 'You have already taken this quiz' 
+      return res.status(400).json({
+        message: 'You have already taken this quiz'
       });
     }
 
@@ -729,6 +696,22 @@ export const submitQuiz = async (req, res) => {
 
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Enforce eligibility server-side (not just in verify-passcode).
+    if (!isStudentEligible(quiz, req.user)) {
+      return res.status(403).json({ message: 'You are not eligible for this quiz' });
+    }
+
+    // Require a valid access grant proving this student passed the passcode gate.
+    const accessGrant = await QuizAccess.findOne({
+      studentId: req.user._id,
+      quizId: quiz._id,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!accessGrant) {
+      return res.status(403).json({ message: 'Passcode verification required before submitting this quiz' });
     }
 
     // Check if student already submitted

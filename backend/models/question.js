@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { createSearchRegex } from '../utils/searchRegex.js';
 
 const optionSchema = new mongoose.Schema({
   text: { type: String, required: true },
@@ -87,10 +88,11 @@ questionSchema.statics.findByModule = function(lecturerId, moduleId, filters = {
   if (filters.type) query.type = filters.type;
   if (filters.difficulty) query.difficulty = filters.difficulty;
   
-  if (filters.search) {
+  const searchRegex = createSearchRegex(filters.search);
+  if (searchRegex) {
     query.$or = [
-      { questionText: { $regex: filters.search, $options: 'i' } },
-      { tags: { $in: [new RegExp(filters.search, 'i')] } }
+      { questionText: { $regex: searchRegex } },
+      { tags: { $in: [searchRegex] } }
     ];
   }
   

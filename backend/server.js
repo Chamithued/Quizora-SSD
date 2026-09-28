@@ -23,6 +23,9 @@ dotenv.config();
 
 const app = express();
 
+// Remove framework fingerprinting
+app.disable('x-powered-by');
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.resolve('uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -34,10 +37,35 @@ app.use(helmet({
   crossOriginResourcePolicy: false,
 }));
 
-// CORS configuration
+// Hardened CORS configuration with dynamic whitelist validation
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+if (process.env.FRONTEND_URL) {
+  process.env.FRONTEND_URL.split(',').forEach(url => {
+    const trimmed = url.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL?.split(',') || ['http://localhost:3000'],
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. mobile clients, server-to-server, curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Cross-Origin Request Blocked: Origin not permitted by CORS policy'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Body parsing middleware
@@ -47,16 +75,31 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Static files for uploaded images
 app.use('/uploads', express.static(uploadsDir));
 
-// General rate limiting
-const limiter = rateLimit({ 
+// 1. General API Rate Limiting (Mitigate DoS floods)
+const generalLimiter = rateLimit({ 
   windowMs: 15 * 60 * 1000,
-  limit: 1000,
+  limit: 100, // Reduced from 1000 to standard 100 requests per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Too many requests, please try again later.'
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again after 15 minutes.'
+  }
 });
-app.use(limiter);
+app.use('/api', generalLimiter);
 
+// 2. Strict Auth Rate Limiting (Mitigate Brute-Force & Credential Stuffing)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5, // Maximum 5 failed attempts per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many login attempts from this IP, please try again after 15 minutes.'
+  }
+});
+app.use('/api/auth/login', authLimiter);
 // Database connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected'))
@@ -130,8 +173,14 @@ app.use((err, req, res, next) => {
   }
   
   if (err.code === 'LIMIT_FILE_COUNT') {
-    return res.status(400).json({ 
-      message: 'Too many files. Maximum is 1 file.' 
+    return res.status(400).json({
+      message: 'Too many files. Maximum is 1 file.'
+    });
+  }
+
+  if (err.code === 'LIMIT_UNEXPECTED_FILE_TYPE') {
+    return res.status(400).json({
+      message: err.message
     });
   }
 

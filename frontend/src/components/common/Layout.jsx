@@ -15,6 +15,7 @@ const Layout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [logoutError, setLogoutError] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemStatus, setSystemStatus] = useState({
     online: true,
@@ -58,12 +59,13 @@ const Layout = ({ children }) => {
   }, []);
 
   const handleLogout = async () => {
+    setLogoutError('');
     try {
       await logout();
       navigate('/login');
     } catch (error) {
       console.error('Logout error:', error);
-      navigate('/login');
+      setLogoutError('Logout could not be completed. Please try again.');
     }
   };
 
@@ -462,6 +464,11 @@ const Layout = ({ children }) => {
 
         {/* Page content */}
         <main className="flex-1 overflow-hidden">
+          {logoutError && (
+            <div role="alert" className="m-4 rounded border border-red-300 bg-red-50 p-3 text-red-800">
+              {logoutError}
+            </div>
+          )}
           {children}
         </main>
 

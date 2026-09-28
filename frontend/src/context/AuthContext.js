@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import api from '../services/api';
+import { logoutSession } from '../services/logoutSession.mjs';
 
 const AuthContext = createContext();
 
@@ -111,10 +112,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = () => logoutSession(api, localStorage, () => {
     dispatch({ type: 'LOGOUT' });
-  };
+  });
 
   const refreshProfile = async () => {
     const response = await api.get('/auth/profile');
