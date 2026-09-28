@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Save, X, AlertCircle } from "lucide-react";
 import { questionService } from "../../services/questionService";
+import { ASSET_BASE_URL } from '../../services/apiConfig';
 
 export default function QuestionForm({ question, module, onQuestionCreated }) {
   const [formData, setFormData] = useState({
@@ -58,7 +59,7 @@ export default function QuestionForm({ question, module, onQuestionCreated }) {
 
       // Set existing image preview if available
       if (question.image) {
-        setImagePreview(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/uploads/${question.image}`);
+        setImagePreview(`${ASSET_BASE_URL}/uploads/${question.image}`);
       }
     } else {
       setIsEditMode(false);

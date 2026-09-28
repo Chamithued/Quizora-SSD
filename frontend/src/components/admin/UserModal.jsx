@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 
-const UserModal = ({ user, onClose }) => {
+const UserModal = ({ user, onClose, approvalMode = false }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -29,14 +29,14 @@ const UserModal = ({ user, onClose }) => {
         lastName: user.lastName,
         email: user.email,
         password: '', // Always empty for editing
-        role: user.role,
+        role: approvalMode ? user.requestedRole || 'student' : user.role,
         degreeTitle: user.degreeTitle || '',
         currentYear: user.currentYear || 1,
         currentSemester: user.currentSemester || 1,
         isActive: user.isActive
       });
     }
-  }, [user]);
+  }, [user, approvalMode]);
 
   const fetchDegreeOptions = async () => {
     try {
@@ -122,7 +122,9 @@ const UserModal = ({ user, onClose }) => {
       });
 
       let response;
-      if (user) {
+      if (approvalMode) {
+        response = await userService.approveUser(user._id, submitData);
+      } else if (user) {
         console.log('Updating existing user with ID:', user._id);
         response = await userService.updateUser(user._id, submitData);
       } else {
@@ -177,10 +179,10 @@ const UserModal = ({ user, onClose }) => {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold">
-                    {user ? 'Edit User' : 'Add New User'}
+                    {approvalMode ? 'Approve registration' : user ? 'Edit User' : 'Add New User'}
                   </h3>
                   <p className="text-white text-opacity-80 text-sm">
-                    {user ? 'Update user information and settings' : 'Create a new user account'}
+                    {approvalMode ? 'Verify the requested role and academic details before granting access.' : user ? 'Update user information and settings' : 'Create a new user account'}
                   </p>
                 </div>
               </div>
@@ -263,6 +265,7 @@ const UserModal = ({ user, onClose }) => {
                     type="email"
                     id="email"
                     name="email"
+                    disabled={approvalMode}
                     required
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     placeholder="Enter email address"
@@ -271,7 +274,7 @@ const UserModal = ({ user, onClose }) => {
                   />
                 </div>
 
-                <div className="mt-4">
+                {!approvalMode && <div className="mt-4">
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                     Password {user ? (
                       <span className="text-gray-500 font-normal">(leave blank to keep current password)</span>
@@ -294,7 +297,7 @@ const UserModal = ({ user, onClose }) => {
                       Only fill this field if you want to change the user's password
                     </p>
                   )}
-                </div>
+                </div>}
               </div>
 
               {/* Role & Status */}
@@ -329,6 +332,7 @@ const UserModal = ({ user, onClose }) => {
                         type="checkbox"
                         id="isActive"
                         name="isActive"
+                        disabled={approvalMode}
                         className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         checked={formData.isActive}
                         onChange={handleChange}
@@ -449,7 +453,7 @@ const UserModal = ({ user, onClose }) => {
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={user ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} />
                       </svg>
-                      {user ? 'Update User' : 'Create User'}
+                      {approvalMode ? 'Approve registration' : user ? 'Update User' : 'Create User'}
                     </div>
                   )}
                 </button>

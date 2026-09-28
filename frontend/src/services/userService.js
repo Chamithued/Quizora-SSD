@@ -1,6 +1,9 @@
 import api from './api';
 
 export const userService = {
+  getPendingUsers: () => api.get('/users/pending'),
+  approveUser: (id, data) => api.post(`/users/${id}/approve`, data),
+  rejectUser: id => api.post(`/users/${id}/reject`, {}),
   getUsers: async (params = {}) => {
     const response = await api.get('/users', params);
     return response;

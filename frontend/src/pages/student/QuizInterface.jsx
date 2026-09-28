@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ASSET_BASE_URL } from '../../services/apiConfig';
 import { Clock, ChevronLeft, ChevronRight, Flag, CheckCircle, AlertCircle } from 'lucide-react';
 
 const QuizInterface = ({ quiz, questions, onSubmitQuiz }) => {
@@ -207,7 +208,7 @@ const QuizInterface = ({ quiz, questions, onSubmitQuiz }) => {
                 {currentQuestion.image && (
                   <div className="my-4">
                     <img
-                      src={`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/uploads/${currentQuestion.image}`}
+                      src={`${ASSET_BASE_URL}/uploads/${currentQuestion.image}`}
                       alt="Question"
                       className="max-w-full h-auto rounded-lg border border-gray-200"
                     />

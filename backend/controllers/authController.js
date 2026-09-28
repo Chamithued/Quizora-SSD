@@ -3,13 +3,17 @@ import { randomUUID } from 'node:crypto';
 import User from '../models/User.js';
 import AuthSession from '../models/AuthSession.js';
 
-// Generate JWT token
-const generateToken = (userId, sessionId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+// Both password and Google login must persist a revocable session before issuing a token.
+export const generateToken = async (userId) => {
+  const sessionId = randomUUID();
+  const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     algorithm: 'HS256',
     jwtid: sessionId,
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
+  const { exp } = jwt.decode(token);
+  await AuthSession.create({ _id: sessionId, userId, expiresAt: new Date(exp * 1000) });
+  return token;
 };
 
 export const login = async (req, res) => {
@@ -45,14 +49,7 @@ export const login = async (req, res) => {
     await user.save();
 
     // Generate token
-    const sessionId = randomUUID();
-    const token = generateToken(user._id, sessionId);
-    const { exp } = jwt.decode(token); // Locally generated, signed token.
-    await AuthSession.create({
-      _id: sessionId,
-      userId: user._id,
-      expiresAt: new Date(exp * 1000)
-    });
+    const token = await generateToken(user._id);
 
     // Remove password from response
     const userResponse = user.toJSON();

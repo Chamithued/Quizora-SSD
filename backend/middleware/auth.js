@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import AuthSession from '../models/AuthSession.js';
 
-export const authenticate = async (req, res, next) => {
+export const createAuthenticate = (allowPending = false, users = User, sessions = AuthSession) => async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -16,7 +16,7 @@ export const authenticate = async (req, res, next) => {
         !Number.isFinite(decoded.exp)) {
       return res.status(401).json({ message: 'Invalid session. Please log in again.' });
     }
-    const session = await AuthSession.findOne({
+    const session = await sessions.findOne({
       _id: decoded.jti,
       userId: decoded.id,
       expiresAt: { $gt: new Date() }
@@ -24,10 +24,14 @@ export const authenticate = async (req, res, next) => {
     if (!session) {
       return res.status(401).json({ message: 'Session expired or logged out.' });
     }
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await users.findById(decoded.id).select('-password');
     
     if (!user || !user.isActive) {
       return res.status(401).json({ message: 'User not found or inactive' });
+    }
+
+    if (!allowPending && user.approvalStatus && user.approvalStatus !== 'approved') {
+      return res.status(403).json({ message: 'Administrator approval is required.', approvalStatus: user.approvalStatus });
     }
 
     req.user = user;
@@ -42,13 +46,16 @@ export const authenticate = async (req, res, next) => {
   }
 };
 
+export const authenticate = createAuthenticate();
+export const authenticatePending = createAuthenticate(true);
+
 export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Access denied. User not authenticated.' });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if ((req.user.approvalStatus && req.user.approvalStatus !== 'approved') || !roles.includes(req.user.role)) {
       return res.status(403).json({ 
         message: `Access denied. Required roles: ${roles.join(', ')}` 
       });

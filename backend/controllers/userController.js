@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import { createSearchRegex } from '../utils/searchRegex.js';
 
 // Degree options based on your requirements
-const DEGREE_OPTIONS = [
+export const DEGREE_OPTIONS = [
   // Faculty of Computing
   { code: 'COM-101', title: 'BSc (Hons) in Information Technology', faculty: 'Faculty of Computing' },
   { code: 'COM-102', title: 'BSc (Hons) in Software Engineering', faculty: 'Faculty of Computing' },
@@ -52,7 +52,7 @@ export const getUsers = async (req, res) => {
   try {
     const { role, page = 1, limit = 10, search } = req.query;
     const searchRegex = createSearchRegex(search);
-    const query = {};
+    const query = { approvalStatus: { $ne: 'pending' } };
     
     if (role && role !== 'all') {
       query.role = role;
@@ -173,6 +173,9 @@ export const updateUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    if (user.approvalStatus === 'pending') {
+      return res.status(409).json({ message: 'Use the registration approval action for pending accounts.' });
+    }
     // Reject a non-string email to prevent NoSQL operator injection in the
     // duplicate-email lookup below.
     if (email !== undefined && typeof email !== 'string') {

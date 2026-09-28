@@ -59,3 +59,7 @@ node-inspector.log
 
 # MongoDB dump files (if any)
 dump/
+
+.env
+.env.*
+!.env.example

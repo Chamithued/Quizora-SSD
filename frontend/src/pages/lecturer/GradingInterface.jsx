@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ASSET_BASE_URL } from '../../services/apiConfig';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -26,8 +27,7 @@ const getQuestionImageUrl = (filename) => {
     return null;
   }
 
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-  return `${apiUrl.replace(/\/$/, '')}/uploads/${encodeURIComponent(filename)}`;
+  return `${ASSET_BASE_URL}/uploads/${encodeURIComponent(filename)}`;
 };
 
 const GradingInterface = () => {

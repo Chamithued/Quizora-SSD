@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Layout from './components/common/Layout';
 import LoginPage from './pages/LoginPage';
+import PendingApprovalPage from './pages/PendingApprovalPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import UsersPage from './pages/admin/UsersPage';
 import LecturerDashboard from './pages/lecturer/LecturerDashboard';
@@ -32,6 +33,7 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/pending-approval" element={<PendingApprovalPage />} />
             
             {/* Protected Admin Routes */}
             <Route 

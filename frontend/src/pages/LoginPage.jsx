@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+
+const googleErrors = {
+  unavailable: 'Google sign-in is not configured yet.',
+  invalid_state: 'Google sign-in expired or was opened in another browser. Please try again.',
+  cancelled: 'Google sign-in was cancelled. You can try again.',
+  not_linked: 'This Google account is not connected. Use “Connect Google to my account” below first.',
+  link_failed: 'Unable to connect this Google account. It may already be connected to a Quizora account.',
+  failed: 'Google sign-in could not be verified. Please try again.',
+  existing_account: 'A Quizora account already uses this email. Connect Google using your existing Quizora password.'
+};
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -9,9 +20,54 @@ const LoginPage = () => {
   });
   const { login, loading, error, user } = useAuth();
   const navigate = useNavigate();
+  const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [linkGoogle, setLinkGoogle] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
+  const [signup, setSignup] = useState({ firstName: '', lastName: '', requestedRole: 'student' });
+  const [googleError, setGoogleError] = useState(() => {
+    const reason = new URLSearchParams(window.location.search).get('google_error');
+    return reason ? googleErrors[reason] || googleErrors.failed : '';
+  });
+
+  useEffect(() => {
+    api.get('/auth/google/status').then(result => setGoogleEnabled(result.enabled)).catch(() => {});
+    if (new URLSearchParams(window.location.search).has('google_error')) {
+      window.history.replaceState({}, '', '/login');
+    }
+  }, []);
+
+  const startGoogle = async (linking = false) => {
+    setGoogleBusy(true);
+    setGoogleError('');
+    try {
+      const { url } = await api.googleAuth(linking ? 'link' : 'start', linking ? formData : {});
+      window.location.assign(url);
+    } catch (error) {
+      setGoogleError(error.message);
+      setGoogleBusy(false);
+    }
+  };
+
+  const signupGoogle = async event => {
+    event.preventDefault();
+    setGoogleBusy(true);
+    setGoogleError('');
+    try {
+      const { url } = await api.googleAuth('signup', signup);
+      window.location.assign(url);
+    } catch (error) {
+      setGoogleError(error.message);
+      setGoogleBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
+      if (user.approvalStatus && user.approvalStatus !== 'approved') {
+        navigate('/pending-approval', { replace: true });
+        return;
+      }
       switch (user.role) {
         case 'admin':
           navigate('/admin/dashboard', { replace: true });
@@ -37,6 +93,10 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (linkGoogle) {
+      await startGoogle(true);
+      return;
+    }
     const result = await login(formData.email, formData.password);
     
     if (result.success) {
@@ -88,6 +148,50 @@ const LoginPage = () => {
 
         {/* Login Form */}
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+          <button
+            type="button"
+            disabled={!googleEnabled || googleBusy || loading}
+            onClick={() => startGoogle()}
+            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {googleBusy ? 'Opening Google…' : 'Continue with Google'}
+          </button>
+          {!googleEnabled && <p className="mt-2 text-xs text-gray-500 text-center">Google sign-in needs administrator configuration.</p>}
+          {googleError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{googleError}</p>}
+          {googleEnabled && (
+            <button type="button" disabled={googleBusy} onClick={() => setSignupOpen(!signupOpen)}
+              className="mt-3 w-full text-sm font-semibold text-blue-700 hover:underline">
+              {signupOpen ? 'Close registration' : 'New to Quizora? Sign up with Google'}
+            </button>
+          )}
+          {signupOpen && (
+            <form onSubmit={signupGoogle} className="mt-4 space-y-3 rounded-xl bg-blue-50 p-4">
+              <p className="text-sm text-gray-700">All new accounts need administrator approval before accessing Quizora.</p>
+              <label className="block text-sm">First name
+                <input required maxLength={100} value={signup.firstName} onChange={e => setSignup({ ...signup, firstName: e.target.value })} className="mt-1 w-full rounded border p-2" />
+              </label>
+              <label className="block text-sm">Last name
+                <input required maxLength={100} value={signup.lastName} onChange={e => setSignup({ ...signup, lastName: e.target.value })} className="mt-1 w-full rounded border p-2" />
+              </label>
+              <label className="block text-sm">Requested role
+                <select value={signup.requestedRole} onChange={e => setSignup({ ...signup, requestedRole: e.target.value })} className="mt-1 w-full rounded border p-2">
+                  <option value="student">Student</option>
+                  <option value="lecturer">Lecturer</option>
+                  <option value="admin">Administrator (requires existing admin approval)</option>
+                </select>
+              </label>
+              <button disabled={googleBusy} className="w-full rounded-lg bg-blue-600 p-2 text-white disabled:opacity-50">Sign up with Google</button>
+            </form>
+          )}
+          {googleEnabled && (
+            <button type="button" disabled={googleBusy} onClick={() => setLinkGoogle(!linkGoogle)}
+              className="mt-3 w-full text-sm text-blue-700 hover:underline">
+              {linkGoogle ? 'Back to password sign-in' : 'Connect Google to my account (first time)'}
+            </button>
+          )}
+          <p className="my-5 text-center text-sm text-gray-500">
+            {linkGoogle ? 'Enter your existing Quizora credentials, then choose the Google account to connect.' : 'or sign in with your password'}
+          </p>
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -156,7 +260,7 @@ const LoginPage = () => {
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleBusy}
                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
               >
                 {loading ? (
@@ -169,7 +273,7 @@ const LoginPage = () => {
                     <svg className="h-5 w-5 text-white mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
-                    Sign In
+                    {linkGoogle ? 'Verify password and connect Google' : 'Sign In'}
                   </div>
                 )}
               </button>
