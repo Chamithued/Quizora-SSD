@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 import api from '../services/api';
+import { logoutSession } from '../services/logoutSession.mjs';
 
 const AuthContext = createContext();
 
@@ -94,10 +95,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = () => logoutSession(api, localStorage, () => {
     dispatch({ type: 'LOGOUT' });
-  };
+  });
 
   const clearError = () => {
     dispatch({ type: 'CLEAR_ERROR' });
