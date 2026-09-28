@@ -21,6 +21,15 @@ import {
   FileText
 } from 'lucide-react';
 
+const getQuestionImageUrl = (filename) => {
+  if (typeof filename !== 'string' || !/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) {
+    return null;
+  }
+
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  return `${apiUrl.replace(/\/$/, '')}/uploads/${encodeURIComponent(filename)}`;
+};
+
 const GradingInterface = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
@@ -568,10 +577,10 @@ const GradingInterface = () => {
             )}
 
             {/* Show image if available */}
-            {question?.image && (
+            {getQuestionImageUrl(question?.image) && (
               <div className="mt-3">
                 <img
-                  src={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/uploads/${question.image}`}
+                  src={getQuestionImageUrl(question.image)}
                   alt="Question"
                   className="max-w-md h-auto border border-gray-300 rounded-lg"
                 />
