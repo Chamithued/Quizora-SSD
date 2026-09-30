@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import User from '../models/User.js';
 import AuthSession from '../models/AuthSession.js';
 import authRoutes from '../routes/authRoutes.js';
+import { createGoogleAuthHandlers } from '../controllers/googleAuthController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { logoutSession } from '../../frontend/src/services/logoutSession.mjs';
 
@@ -231,4 +232,49 @@ test('browser logout retains token/state when revocation fails so it can be retr
   }, { removeItem: () => events.push('cleared') }, () => events.push('logged-out')),
   /Network unavailable/);
   assert.deepEqual(events, []);
+});
+
+async function completeGoogleLogin() {
+  const handlers = createGoogleAuthHandlers({
+    config: () => ({ enabled: true, frontendOrigin: 'http://localhost:3000', secure: false }),
+    transactions: { findOneAndDelete: async () => ({ userId }) },
+    users: { findOneAndUpdate: async () => user }
+    // Use the real shared token/session issuer with the test session store.
+  });
+  const res = {
+    statusCode: 200, set() { return this; }, clearCookie() { return this; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+  await handlers.complete({ headers: {
+    origin: 'http://localhost:3000', cookie: `quizora_google=${'x'.repeat(43)}`
+  } }, res);
+  return res;
+}
+
+test('Google completion creates a usable session that logout revokes', async () => {
+  const result = await completeGoogleLogin();
+  assert.equal(result.statusCode, 200);
+  assert.equal(typeof result.body.token, 'string');
+  const token = result.body.token;
+  assert.ok(sessions.has(jwt.decode(token).jti));
+  assert.equal((await stats(token)).status, 200);
+  assert.equal((await logout(token)).status, 200);
+  assert.equal((await stats(token)).status, 401);
+});
+
+test('pending Google sessions can view their profile and log out but cannot use admin APIs', async () => {
+  user.approvalStatus = 'pending';
+  const { body: { token } } = await completeGoogleLogin();
+  assert.equal((await request('/api/auth/profile', { token })).status, 200);
+  assert.equal((await stats(token)).status, 403);
+  assert.equal((await logout(token)).status, 200);
+  assert.equal((await request('/api/auth/profile', { token })).status, 401);
+});
+
+test('Google completion does not issue a token when session persistence fails', async () => {
+  failCreate = true;
+  const result = await completeGoogleLogin();
+  assert.equal(result.statusCode, 500);
+  assert.equal(result.body.token, undefined);
 });

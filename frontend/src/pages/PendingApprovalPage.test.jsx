@@ -19,3 +19,11 @@ test('pending user cannot render a protected dashboard', () => {
   render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><ProtectedRoute><p>Secret dashboard</p></ProtectedRoute></MemoryRouter>);
   expect(screen.queryByText('Secret dashboard')).not.toBeInTheDocument();
 });
+
+test('failed session revocation displays a retryable error on the pending page', async () => {
+  useAuth.mockReturnValue({ user: { approvalStatus: 'pending', firstName: 'New' }, loading: false,
+    refreshProfile: jest.fn(), logout: jest.fn().mockRejectedValue(new Error('Unable to log out. Please try again.')) });
+  render(<PendingApprovalPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Unable to log out. Please try again.');
+});

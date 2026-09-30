@@ -1,3 +1,4 @@
+frontend/src/context/AuthContext.js
 import { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import api from '../services/api';
 import { logoutSession } from '../services/logoutSession.mjs';

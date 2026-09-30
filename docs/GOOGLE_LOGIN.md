@@ -133,7 +133,7 @@ npm run build
 
 Backend tests use database substitutes and locally signed RSA tokens with the real Google token verifier. They do not contact Google or validate a live MongoDB deployment. Run the following real-account scenarios after configuring Google:
 
-Implementation validation: 25 backend tests and 15 frontend tests pass. The frontend production build succeeds with existing lint warnings elsewhere in the application. Live Google/MongoDB end-to-end sign-in remains to be tested with your configured credentials.
+Implementation validation: 39 backend tests and 16 frontend tests pass, including Google session creation, protected API access, pending-account restrictions and logout revocation. The frontend production build succeeds with existing lint warnings elsewhere in the application. Tests substitute database operations; live Google/MongoDB sign-in must also be verified in your environment.
 
 | Scenario | Expected result |
 | --- | --- |
@@ -160,7 +160,7 @@ For your video, show Google registration, the pending page, failed direct access
 - Existing users retain default `approved` status for compatibility. All new public Google signups explicitly set `pending`, even admin requests. Existing admin-provisioned accounts are trusted as before.
 - Approval queue shows up to 100 oldest requests; approve/reject and refresh to process the next batch.
 - Passwordless Google accounts do not support password login until an admin explicitly sets a password. Self-service unlinking/replacement and rejected-account appeals are not implemented; contact the administrator.
-- The existing application JWT remains in `localStorage` (XSS exposure). Existing logout removes the local token without server revocation or Google logout. A full session-storage/revocation migration is separate work.
+- The application JWT remains in `localStorage` (XSS exposure). Password and Google login both create a persisted `AuthSession`, and logout revokes that session before clearing the local token. Old tokens without a session ID require a fresh login. Logging out of Quizora does not log the user out of Google.
 - Existing exposed demo credentials, tracked secrets, dependency vulnerabilities and other legacy security issues need separate assessment. This feature does not fix them.
 - Rate limits are process-local; multiple backend instances require a shared limiter store and correct trusted-proxy configuration.
 

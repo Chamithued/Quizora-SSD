@@ -22,6 +22,10 @@ export default function PendingApprovalPage() {
     try { await refreshProfile(); } catch (err) { setError(err.message); }
     finally { setChecking(false); }
   };
+  const signOut = async () => {
+    setError('');
+    try { await logout(); } catch (err) { setError(err.message || 'Unable to sign out. Please try again.'); }
+  };
   return (
     <main className="min-h-screen flex items-center justify-center bg-blue-50 p-6">
       <section className="w-full max-w-lg rounded-2xl bg-white p-8 shadow-lg text-center">
@@ -35,7 +39,7 @@ export default function PendingApprovalPage() {
         {error && <p role="alert" className="mt-4 text-red-700">{error}</p>}
         <div className="mt-6 flex justify-center gap-4">
           <button onClick={checkStatus} disabled={checking} className="rounded-lg bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{checking ? 'Checking…' : 'Check approval status'}</button>
-          <button onClick={logout} className="rounded-lg border px-4 py-2">Sign out</button>
+          <button onClick={signOut} className="rounded-lg border px-4 py-2">Sign out</button>
         </div>
       </section>
     </main>

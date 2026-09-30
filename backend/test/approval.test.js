@@ -10,14 +10,15 @@ test('pending and rejected users cannot access protected APIs, including with an
   for (const approvalStatus of ['pending', 'rejected']) {
     const user = { _id: 'pending', role: 'admin', isActive: true, approvalStatus };
     const users = { findById: () => ({ select: async () => user }) };
-    const req = { header: () => `Bearer ${jwt.sign({ id: user._id }, process.env.JWT_SECRET)}` };
+    const sessions = { findOne: async () => ({ userId: user._id }) };
+    const req = { header: () => `Bearer ${jwt.sign({ id: user._id }, process.env.JWT_SECRET, { jwtid: 'test-session', expiresIn: '1h' })}` };
     let nextCalled = false;
     const res = response();
-    await createAuthenticate(false, users)(req, res, () => { nextCalled = true; });
+    await createAuthenticate(false, users, sessions)(req, res, () => { nextCalled = true; });
     assert.equal(res.statusCode, 403);
     assert.equal(nextCalled, false);
     const profile = response();
-    await createAuthenticate(true, users)(req, profile, () => { nextCalled = true; });
+    await createAuthenticate(true, users, sessions)(req, profile, () => { nextCalled = true; });
     assert.equal(nextCalled, true);
     const admin = response();
     authorize('admin')({ user }, admin, () => assert.fail('Pending admin gained access'));

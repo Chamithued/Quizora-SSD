@@ -1,16 +1,16 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import User from '../models/User.js';
-import OAuthTransaction from '../models/OAuthTransaction.js';
-import { generateToken } from './authController.js';
+import OAuthTransaction from '../models/OAuthTransaction.js'; // import the OAuthTransaction model for temparily storing Google sign-in transactions
+import { generateToken } from './authController.js'; // import the generateToken function from authController.js to issue JWTs after successful Google sign-in
 
-const COOKIE = 'quizora_google';
-const COOKIE_PATH = '/api/auth/google';
-const random = () => randomBytes(32).toString('base64url');
-const hash = value => createHash('sha256').update(value).digest('hex');
-const isSecret = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
+const COOKIE = 'quizora_google'; // define the name of the cookie used to store temporary state and nonce values during the Google sign-in process
+const COOKIE_PATH = '/api/auth/google'; // define the path for the Google sign-in cookie, which is used to store temporary state and nonce values during the authentication process
+const random = () => randomBytes(32).toString('base64url'); // generate a random string of 32 bytes and encode it in base64url format, used for creating unique state and nonce values for Google sign-in transactions
+const hash = value => createHash('sha256').update(value).digest('hex'); // create a SHA-256 hash of the input value, used for securely storing sensitive data like state and nonce values in the database
+const isSecret = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value); // check if the input value is a valid secret string, which is a 43-character long string containing only alphanumeric characters, underscores, and hyphens
 const browserSecret = req => req.headers.cookie?.split(';')
-  .map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+  .map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1); // extract the value of the Google sign-in cookie from the request headers, which is used to verify the authenticity of the request during the callback phase of the Google sign-in process
 
 export function getGoogleConfig(env = process.env) {
   const frontend = new URL(env.GOOGLE_FRONTEND_URL || 'http://localhost:3000');
@@ -207,7 +207,8 @@ export function createGoogleAuthHandlers({
       const user = await users.findOneAndUpdate({ _id: transaction.userId, isActive: true },
         { $set: { lastLogin: new Date() } }, { new: true });
       if (!user) return res.status(401).json({ message: 'Account is unavailable.' });
-      res.json({ success: true, token: issueToken(user._id), user: user.toJSON() });
+      const token = await issueToken(user._id);
+      res.json({ success: true, token, user: user.toJSON() });
     } catch {
       res.status(500).json({ message: 'Unable to finish Google sign-in. Please try again.' });
     }

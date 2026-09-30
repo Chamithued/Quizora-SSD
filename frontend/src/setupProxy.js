@@ -1,3 +1,4 @@
+frontend/src/setupProxy.js
 // CRA loads this server-side hook before serving frontend files and SPA routes.
 // Framing protection must be an HTTP header; a CSP meta tag cannot enforce it.
 module.exports = function setupFrontendHeaders(app) {
